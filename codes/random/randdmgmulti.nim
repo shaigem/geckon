@@ -35,7 +35,7 @@ const
 
 defineCodes:
     createCode "Random Damage Multiplier (Projectiles)":
-        authors "Odante"
+        authors "Ronnie"
         description "Every projectile hit has a random damage multiplier applied to it"
 
         patchInsertAsm "802724A8":
