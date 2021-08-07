@@ -98,7 +98,7 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
                     section.targetAddress, assembledFile.readAll())
             geckoCode.codeTypes.add codeType
 
-        #defer: removeDir(tempAssembleDir, false)
+        defer: removeDir(tempAssembleDir, false)
         result.add geckoCode
 
 template build*(b: untyped): untyped =
