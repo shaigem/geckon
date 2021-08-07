@@ -9,9 +9,13 @@ type
                 f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28,
                 f29, f30, f31
 
-template branchLink*(reg: Register, address: string): string =
+template load*(address: string, reg: Register = r12): string =
     ppc:
         lis {$reg}, {address} @h
         ori {$reg}, {$reg}, {address} @l
+
+template branchLink*(address: string, reg: Register = r12): string =
+    ppc:
+        {load address, reg}
         mtctr {$reg}
         bctrl
