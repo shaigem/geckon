@@ -11,6 +11,5 @@ bin = @["geckon"]
 
 requires "nim >= 1.5.1"
 
-
-task codes, "Create Gecko codes from the 'codes' folder":
-  exec "nim r codes/build.nim"
+task melee, "Create melee gecko codes":
+  exec "nim r codes/buildmelee.nim"

@@ -1,4 +1,4 @@
-import geckon, ../common/melee
+import geckon, ../melee
 
 # TODO make this a common function?
 proc defineIntToFloat(): string =

@@ -1,6 +1,6 @@
 # geckon
 
-A simple framework for creating ASM Gecko codes in `Nim`.
+A simple build framework for creating ASM Gecko codes in Nim.
 
 This is mainly targeted for creating Gecko codes for [Super Smash Bros. Melee](https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee).
 
