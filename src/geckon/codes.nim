@@ -46,34 +46,6 @@ macro defineCodes*(body: untyped): untyped =
         let constName = postfix(ident("Codes"), "*")
         result.add newConstStmt(constName, codesArrayNode)
 
-
-#[ macro defineCodes*(body: untyped): untyped =
-        expectKind(body, nnkStmtList)
-        result = body
-        let codesArrayNode = newNimNode(nnkBracket)
-        for b in body:
-                case b.kind:
-                of nnkCommand:
-                        expectKind(b[1], nnkStrLit)
-                        let codeNameNode = b[1]
-                        codesArrayNode.add newCall(ident(codeNameNode.strVal.toSnakeCase))
-                else:
-                        continue
-                let constName = postfix(ident("Codes"), "*")
-                result.add newConstStmt(constName, codesArrayNode) ]#
-
-        #[ macro createCode*(name: string, codeSection: untyped): untyped =
-    expectKind(codeSection, nnkStmtList)
-    result = newStmtList()
-    let procBody = newStmtList()
-    let tmp = ident("result")
-    procBody.add newAssignment(tmp, newCall(bindSym"newCodeNode", name))
-    for bodyNode in codeSection:
-            procBody.add newCall(bindSym("add"),
-            tmp.newDotExpr(ident("sections")), bodyNode)
-    let procName = postfix(ident(($name).toSnakeCase), "*")
-    result.add newProc(procName, [bindSym("CodeNode")], procBody) ]#
-
 macro createCode*(name: string, codeSection: untyped): untyped =
         expectKind(codeSection, nnkStmtList)
         result = newStmtList()
@@ -96,22 +68,6 @@ macro createCode*(name: string, codeSection: untyped): untyped =
         let procName = postfix(ident(($name).toSnakeCase), "*")
         let newProc = newBlockStmt(procBody)
         result.add newConstStmt(procName, newProc)
-
-#[ macro ppc*(x: untyped): untyped =
-        expectKind(x, nnkStmtList)
-        let resultingCode = genSym(nskVar, "result")
-        result = newStmtList()
-        result.add newVarStmt(resultingCode, newStrLitNode(""))
-
-        for i in 0 ..< x.len:
-        let s = x[i]
-        var ss = s.repr.replace(BacktickRegex, removeBackTicks)
-        ss.removePrefix()
-        let strLit = newStrLitNode(ss & "\n")
-        let p = prefix(strLit, "&")
-        let i = infix(resultingCode, "&=", p)
-        result.add i
-        result.add resultingCode ]#
 
 macro ppc*(x: untyped): string =
         expectKind(x, nnkStmtList)
@@ -146,5 +102,3 @@ template patchInsertAsm*(target: string, b: untyped): CodeSectionNode =
         let code = ppc:
                 b
         CodeSectionNode(kind: InsertAsmNode, targetAddress: target.toUpperAscii(), code: code)
-
-
