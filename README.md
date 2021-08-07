@@ -27,7 +27,7 @@ defineCodes:
             mtctr r12
             bctrl
             # or you can call branchLink() from geckon/codes.nim:
-            {branchLink r12, $0x80380580}
+            {branchLink $0x80380580}
 
 build:
     # can specify as many codes as you want

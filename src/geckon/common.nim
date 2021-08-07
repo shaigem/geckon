@@ -16,6 +16,6 @@ template load*(address: string, reg: Register = r12): string =
 
 template branchLink*(address: string, reg: Register = r12): string =
     ppc:
-        {load address, reg}
+        {load $address, reg}
         mtctr {$reg}
         bctrl
