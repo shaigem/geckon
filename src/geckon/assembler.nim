@@ -18,7 +18,7 @@ type
 
 
 proc getWorkingDir*(resource: static string): static string =
-  splitFile(instantiationInfo(0, fullPaths = true).filename).dir / resource
+    splitFile(instantiationInfo(0, fullPaths = true).filename).dir / resource
 
 proc executeAssembleCommand(outPath: string, asmFilePath: string,
         args: openArray[string]): tuple[output: string, success: bool] =
@@ -34,10 +34,11 @@ proc executeObjCopyCommand(elfOutPath: string): tuple[output: string,
     let (output, returnCode) = execCmdEx(cmd)
     result = (output, returnCode == 0)
 
-macro importFromImpl(dir: static string): untyped =
+macro importFromImpl(dir: static string, recursive: bool): untyped =
     result = newStmtList()
     var moduleNames = newSeq[string]()
-    for d in walkDirRec($dir, relative = false, checkDir = true):
+
+    template findCodes(d: untyped): untyped =
         let (p, name, ext) = splitFile(d)
         if ext != NimFileExtension:
             continue
@@ -46,21 +47,30 @@ macro importFromImpl(dir: static string): untyped =
             moduleNames.add name
             result.add parseStmt("import " & joinPath(p, name))
 
+    if recursive.boolVal:
+        for d in walkDirRec($dir, relative = false, checkDir = true):
+            findCodes d
+    else:
+        for _, d in walkDir($dir, relative = false, checkDir = true):
+            findCodes d
+
     if moduleNames.len == 0:
-        raise newException(CatchableError, "No modules/files were found in directory: " & dir)
-        
+        raise newException(CatchableError,
+                "No modules/files were found in directory: " & dir)
+
     let arrayModuleNames = newNimNode(nnkBracket)
     for module in moduleNames:
         let modNode = newDotExpr(ident(module), ident("Codes"))
         arrayModuleNames.add modNode
     result.add arrayModuleNames
-            
-template importFrom*(dir: static string): untyped =
-    importFromImpl(getWorkingDir dir)
 
-template includeAllCodes*(assembler: var Assembler, moduleCodes: untyped): untyped =
-        for codes in moduleCodes:
-            assembler.codes.add codes
+template importFrom*(dir: static string, recursive: bool = true): untyped =
+    importFromImpl(getWorkingDir dir, recursive)
+
+template includeAllCodes*(assembler: var Assembler,
+        moduleCodes: untyped): untyped =
+    for codes in moduleCodes:
+        assembler.codes.add codes
 
 template includeCodesFrom*(assembler: var Assembler, module: untyped): untyped =
     when declared module.Codes:
@@ -101,7 +111,8 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
 
         # assemble each patch/section of the gecko code
         for section in codeToAssemble.sections:
-            echo "section: type = ", section.kind, ", targetAddress = ", section.targetAddress
+            echo "section: type = ", section.kind, ", targetAddress = ",
+                    section.targetAddress
             # first we must write out the asm code to a file
             let (tempAsmFile, tempAsmFilePath) = createTempFile("", "-" &
                     section.targetAddress & TempAsmExtension, tempAssembleDir)
