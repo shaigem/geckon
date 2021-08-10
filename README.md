@@ -26,7 +26,7 @@ defineCodes:
             ori r12, r12, {0x80380580} @l
             mtctr r12
             bctrl
-            # or you can call branchLink() from geckon/codes.nim:
+            # or you can call branchLink() from geckon/common.nim:
             {branchLink $0x80380580}
 
 build:
