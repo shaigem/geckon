@@ -23,6 +23,10 @@ type CodeNode* = object
         descriptionSection*: CodeSectionNode
         sections*: seq[CodeSectionNode]
 
+const EmptyCodes* = [CodeNode()]
+
+func hasCodeSections*(codeNode: CodeNode): bool = codeNode.sections.len != 0
+
 func toSnakeCase*(codeName: string): string = codeName.toLower().replace(" ", "_")
 
 proc newCodeNode*(name: string): CodeNode =

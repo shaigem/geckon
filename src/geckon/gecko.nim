@@ -1,4 +1,4 @@
-import strutils, sequtils
+import strutils, sequtils, os
 
 const
     InstructionLength = 4
@@ -105,4 +105,6 @@ proc asCombinedOutput*(geckoCodes: openArray[
         GeckoCode]): string = geckoCodes.mapIt(it.asFormattedOutput).join()
 
 proc writeCodesToFile*(geckoCodes: openArray[GeckoCode], fileName: string) =
+    let dir = splitFile(fileName).dir
+    discard existsOrCreateDir dir
     writeFile(fileName, geckoCodes.asCombinedOutput)

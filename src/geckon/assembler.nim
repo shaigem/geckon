@@ -9,11 +9,16 @@ const
     TempDir = "./temp/"
     TempAsmExtension = ".asmtmp"
     TempElfExtension = ".o"
+    NimFileExtension = ".nim"
 
 type
     Assembler* = object
         codes: seq[CodeNode]
         args: seq[string]
+
+
+proc getWorkingDir*(resource: static string): static string =
+  splitFile(instantiationInfo(0, fullPaths = true).filename).dir / resource
 
 proc executeAssembleCommand(outPath: string, asmFilePath: string,
         args: openArray[string]): tuple[output: string, success: bool] =
@@ -29,27 +34,53 @@ proc executeObjCopyCommand(elfOutPath: string): tuple[output: string,
     let (output, returnCode) = execCmdEx(cmd)
     result = (output, returnCode == 0)
 
+macro importFromImpl(dir: static string): untyped =
+    result = newStmtList()
+    var moduleNames = newSeq[string]()
+    for d in walkDirRec($dir, relative = false, checkDir = true):
+        let (p, name, ext) = splitFile(d)
+        if ext != NimFileExtension:
+            continue
+        let fileData = slurp d
+        if fileData.contains("defineCodes:"):
+            moduleNames.add name
+            result.add parseStmt("import " & joinPath(p, name))
+
+    if moduleNames.len == 0:
+        raise newException(CatchableError, "No modules/files were found in directory: " & dir)
+        
+    let arrayModuleNames = newNimNode(nnkBracket)
+    for module in moduleNames:
+        let modNode = newDotExpr(ident(module), ident("Codes"))
+        arrayModuleNames.add modNode
+    result.add arrayModuleNames
+            
+template importFrom*(dir: static string): untyped =
+    importFromImpl(getWorkingDir dir)
+
+template includeAllCodes*(assembler: var Assembler, moduleCodes: untyped): untyped =
+        for codes in moduleCodes:
+            assembler.codes.add codes
+
+template includeCodesFrom*(assembler: var Assembler, module: untyped): untyped =
+    when declared module.Codes:
+        assembler.codes.add module.Codes
+    else:
+        raise newException(CatchableError, "Module does not have a defineCodes block")
+
+proc includeCode*(assembler: var Assembler, code: CodeNode) =
+    assembler.codes.add code
+
 proc initAssembler*(args: openArray[string] = BaseAssemblerArguments,
         codes: openArray[CodeNode] = []): Assembler =
     result = Assembler()
     result.args.add args
     result.codes.add codes
 
-proc addCodes*(assembler: var Assembler, codes: varargs[CodeNode]) =
-    if codes.len == 0:
-        return
-    assembler.codes.add codes
-
-proc addCode*(assembler: var Assembler, code: CodeNode) =
-    assembler.codes.add code
-
 proc addArgs*(assembler: var Assembler, args: varargs[string]) =
     if args.len == 0:
         return
     assembler.args.add args
-
-template importAll*(assembler: var Assembler, b: untyped): untyped =
-    assembler.codes.add b.Codes
 
 proc assemble*(assembler: Assembler): seq[GeckoCode] =
     let codes = assembler.codes
@@ -58,17 +89,19 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
     discard existsOrCreateDir(TempDir)
     result = newSeqOfCap[GeckoCode](codes.len)
     for codeToAssemble in codes:
-
+        if not codeToAssemble.hasCodeSections():
+            continue
+        echo "Assembling code ", codeToAssemble.name, "..."
         var geckoCode = initGeckoCode(codeToAssemble.name,
                 codeToAssemble.authorsSection.authors,
                 codeToAssemble.descriptionSection.description)
-
         let codeNamePrefix = codeToAssemble.name.toLower().split(" ").mapIt(it[
                 0]).join()
         let tempAssembleDir = createTempDir(codeNamePrefix, "", TempDir)
 
         # assemble each patch/section of the gecko code
         for section in codeToAssemble.sections:
+            echo "section: type = ", section.kind, ", targetAddress = ", section.targetAddress
             # first we must write out the asm code to a file
             let (tempAsmFile, tempAsmFilePath) = createTempFile("", "-" &
                     section.targetAddress & TempAsmExtension, tempAssembleDir)

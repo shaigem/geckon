@@ -1,6 +1,7 @@
 import geckon / [codes, common]
 
 const
+    Codes* = EmptyCodes
     FuncHsdRandi* = "0x80380580"
 
 proc hsdRandi*(max: int, inclusive: bool = false, reg: Register = r12): string =
