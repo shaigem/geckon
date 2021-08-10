@@ -9,6 +9,20 @@ type
                 f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26, f27, f28,
                 f29, f30, f31
 
+template backup*(): string = 
+    ppc:
+        mflr r0
+        stw r0, 0x4(r1)
+        stwu r1,-(0x38 + 0x78)(r1) # make space for 12 registers
+        stmw r20,0x8(r1)
+
+template restore*(): string = 
+    ppc:
+        lmw r20,0x8(r1)
+        lwz r0, (0x38 + 0x4 + 0x78)(r1)
+        addi r1,r1,0x38 + 0x78
+        mtlr r0
+
 template load*(address: string, reg: Register = r12): string =
     ppc:
         lis {$reg}, {address} @h

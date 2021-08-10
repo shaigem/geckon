@@ -10,35 +10,35 @@ defineCodes:
 
         # Random angle for Projectiles
         patchInsertAsm "802792e4":
-            # Backup r0, r4 and r5
-            stwu r1, -16(r1)
-            stw r4, 0x4(r1)
-            stw r0, 0x8(r1)
-            stw r5, 0xC(r1)
+            # Backup r0, r4 and r5 manually
+            {backup}
+            mr r31, r0
+            mr r30, r4
+            mr r29, r5
             # Get our random angle (from 0 to MaxAngle) into r3
             {hsdRandi(max = MaxAngle, inclusive = true)}
             stw r3, 0x0020(r29) # original code line
             # Restore r0, r4 and r5
-            lwz r5, 0xC(r1)
-            lwz r0, 0x8(r1)
-            lwz r4, 0x4(r1)
-            addi r1, r1, 0x10
-            
+            mr r0, r31
+            mr r4, r30
+            mr r29, r5
+            {restore}
+             
         # Random angle for Normal Hitboxes
         patchInsertAsm "8007aca0":
-            # backup r0, r3 and r5
-            stwu r1, -16(r1)
-            stw r3, 0x4(r1)
-            stw r0, 0x8(r1)
-            stw r5, 0xC(r1)
+            # Backup r0, r3 and r5 manually
+            {backup}
+            mr r31, r0
+            mr r30, r3
+            mr r29, r5
             # Get our random angle (from 0 to MaxAngle) into r3
             {hsdRandi(max = MaxAngle, inclusive = true)}
-            # Set r4 = r3
+            # Set r4 = r3 
             mr r4, r3
-            # restore r0, r3 and r5
-            lwz r5, 0xC(r1)
-            lwz r0, 0x8(r1)
-            lwz r3, 0x4(r1)
-            addi r1, r1, 0x10
-            # Call the original code line and exit
-            cmplwi r4, 361
+            # restore r0, r3 and r5 manually
+            mr r0, r31
+            mr r3, r30
+            mr r5, r29
+            {restore}
+            cmplwi r4, 361 # original code line
+
