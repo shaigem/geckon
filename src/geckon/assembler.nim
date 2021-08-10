@@ -16,8 +16,7 @@ type
         codes: seq[CodeNode]
         args: seq[string]
 
-
-proc getWorkingDir*(resource: static string): static string =
+proc getWorkingDir(resource: static string): static string =
     splitFile(instantiationInfo(0, fullPaths = true).filename).dir / resource
 
 proc executeAssembleCommand(outPath: string, asmFilePath: string,
