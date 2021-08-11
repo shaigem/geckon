@@ -17,13 +17,13 @@ defineCodes:
             mr r29, r5
             # Get our random angle (from 0 to MaxAngle) into r3
             {hsdRandi(max = MaxAngle, inclusive = true)}
-            stw r3, 0x0020(r29) # original code line
             # Restore r0, r4 and r5
             mr r0, r31
             mr r4, r30
-            mr r29, r5
+            mr r5, r29
             {restore}
-             
+            stw r3, 0x0020(r29) # original code line
+
         # Random angle for Normal Hitboxes
         patchInsertAsm "8007aca0":
             # Backup r0, r3 and r5 manually
