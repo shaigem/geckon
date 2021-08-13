@@ -1,19 +1,5 @@
 import geckon, ../melee
 
-#[ #                b Exit
-#            Item:
-#                lwz r3, 0x2C(r3) # load item data
-#                lwz r3, 0x518(r3) # load fighter
-#                cmpwi r3, 0x0
-#                beq Exit
-#                b Fighter 
-#            cmpwi r29, 0x6
-#            beq Item]#
-
-# r4 is % to heal
-# has gfx
-const 
-    FuncHealPercent = "0x8006cf5c"
 const 
     RegisterVictimData = r30
     RegisterSourceData = r29
@@ -34,7 +20,6 @@ defineCodes:
                 lwz {RegisterSourceData}, 0x2C({RegisterSourceData}) # load fighter data for source
                 # Check if attacker and source fighters are on the same team
                 # We do not want to heal if they are on the same
-
                 SameTeamCheck:
                     %branchToSameTeamCheck(
                         playerOneData = 
