@@ -70,7 +70,7 @@ proc asFormattedOutput*(geckoCode: GeckoCode): string =
     for codeType in geckoCode.codeTypes:
         let dataLen = codeType.data.len
         if dataLen < InstructionLength:
-            raise newException(ValueError, "Provided code type data is invalid or empty")
+            raise newException(ValueError, "Provided code type data is invalid or empty for " & geckoCode.name)
 
         let codeTypeBeginInstr = $codeType.kind & codeType.targetAddress[2 .. ^1]
         case codeType.kind:

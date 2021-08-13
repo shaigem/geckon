@@ -6,10 +6,10 @@ defineCodes:
     createCode "Crazy Hand Uses His Own Lasers":
         description "Can use his lasers without Master Hand in a match"
         patchWrite32Bits "80158584":
-            {LaserCodeLine}
+            %LaserCodeLine
         patchWrite32Bits "801585B8":
-            {LaserCodeLine}
+            %LaserCodeLine
         patchWrite32Bits "801585EC":
-            {LaserCodeLine}
+            %LaserCodeLine
         patchWrite32Bits "80158620":
-            {LaserCodeLine}
+            %LaserCodeLine

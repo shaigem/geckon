@@ -11,7 +11,7 @@ defineCodes:
         description "Every hit has a random multiplier applied to it"
         patchInsertAsm "80089284":
             # free to use: f31, r0, r30, r31
-            {hsdRandi(max = (MaxMultiplier * 10).int, inclusive = true)}
+            %hsdRandi(max = (MaxMultiplier * 10).int, inclusive = true)
             # Cast the Divisor and our multiplier as floats into f31 
             addis r3, r3, {Divisor}
             stw r3, 0x14(sp)
@@ -23,4 +23,4 @@ defineCodes:
             b OriginalExit
             
             OriginalExit:            
-                {OriginalCodeLine}
+                %OriginalCodeLine

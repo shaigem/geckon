@@ -155,3 +155,5 @@ template output*(a, b: untyped): untyped =
     let codes = a.assemble()
     with codes:
         b
+
+# TODO check if list of codes have the same target address...
