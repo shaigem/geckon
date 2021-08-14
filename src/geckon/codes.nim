@@ -73,8 +73,8 @@ macro createCode*(name: string, codeSection: untyped): untyped =
 
 template `%`*(f: untyped): string =
         f
-        
-proc ppcImpl*(c, b: NimNode): NimNode =
+
+proc ppcImpl(c, b: NimNode): NimNode =
         result = newStmtList()
 
         template addToString(a: untyped, newLineSuffix: string{lit} = "\n"): untyped =
