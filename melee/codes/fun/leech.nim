@@ -9,8 +9,10 @@ defineCodes:
         authors "Ronnie"
         description "You heal every direct hit you deal"
         patchInsertAsm "8006d43c":
-            # r29 and r6 is free
             lwz {RegisterSourceData}, 0x1868({RegisterVictimData}) # load source of damage gobj
+            # Check if source damage exists
+            cmpwi {RegisterSourceData}, 0x0
+            beq Exit # if source doesn't exit, Exit
             lhz r3, 0x0({RegisterSourceData}) # check if gobj is player kind
             cmpwi r3, 0x4
             beq Fighter
