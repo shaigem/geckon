@@ -33,3 +33,12 @@ template branchLink*(address: string, reg: Register = r12): string =
         %load(address, reg)
         mtctr {$reg}
         bctrl
+
+template branch*(address: string, reg: Register = r12): string =
+    ppc:
+        %load(address, reg)
+        mtctr {$reg}
+        bctr
+
+template EmptyBlock*(): string = 
+    block: ""

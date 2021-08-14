@@ -10,7 +10,7 @@ defineCodes:
         description "You heal every direct hit you deal"
         patchInsertAsm "8006d43c":
             lwz {RegisterSourceData}, 0x1868({RegisterVictimData}) # load source of damage gobj
-            # Check if source damage exists
+            # Check if source of damage exists
             cmpwi {RegisterSourceData}, 0x0
             beq Exit # if source doesn't exit, Exit
             lhz r3, 0x0({RegisterSourceData}) # check if gobj is player kind
