@@ -17,7 +17,7 @@ defineCodes:
         description "Strong hits unburies players like in Brawl"
         patchInsertAsm "8008ecbc":
             # Check if in bury
-            "bne-" InBury
+            %`bne-`(InBury)
             b NotInBury # exit if not in bury
             
             # If in bury, check if knockback is strong enough to unbury the player
@@ -63,8 +63,8 @@ defineCodes:
             
             Constants:
                 blrl
-                ".float" {MaxUnburyKnockbackUnits} # units of knockback
-                ".align" 2
+                %`.float`(MaxUnburyKnockbackUnits) # units of knockback
+                %`.align`(2)
             
             NotInBury:
-                %EmptyBlock
+                %emptyBlock

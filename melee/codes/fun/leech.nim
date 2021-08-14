@@ -40,7 +40,8 @@ defineCodes:
                     lwz r3, 0x183C({RegisterVictimData}) # load applied damage from victim
                     # Check if source is dead (stamina_dead 0 HP)
                     lbz r4, 0x2224({RegisterSourceData})
-                    "rlwinm." r4, r4, 27, 31, 31
+                    %`rlwinm.`(r4, r4, 27, 31, 31)
+                    #"rlwinm." r4, r4, 27, 31, 31
                     bne Exit # if stamina_dead, Exit
                     # Heal source player with no GFX
                     lwz r4, 0x18F0({RegisterSourceData}) # variable containing remaining damage to heal

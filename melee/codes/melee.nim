@@ -1,4 +1,4 @@
-import geckon / [codes, common]
+import geckon / [ppcasm, ppcutils]
 
 const
     FuncHsdRandi* = "0x80380580"

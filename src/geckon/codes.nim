@@ -1,9 +1,5 @@
 import macros, strutils
 
-from strformat import `&`
-
-export `&`, strip
-
 type CodeSectionNodeKind* {.pure.} = enum
         InsertAsmNode = "C2", Write32BitsNode = "04", AuthorsNode, DescriptionNode
 
@@ -70,81 +66,6 @@ macro createCode*(name: string, codeSection: untyped): untyped =
         let procName = postfix(ident(($name).toSnakeCase), "*")
         let newProc = newBlockStmt(procBody)
         result.add newConstStmt(procName, newProc)
-
-template `%`*(f: untyped): string =
-        f
-
-proc ppcImpl(c, b: NimNode): NimNode =
-        result = newStmtList()
-
-        template addToString(a: untyped, newLineSuffix: string{lit} = "\n"): untyped =
-                let code = infix(a, "&", newStrLitNode(newLineSuffix))
-                let infix = infix(c, "&=", code)
-                echo infix.repr
-                result.add infix
-
-        case b.kind:
-        of nnkCall:
-                let name = b[0]
-                expectKind name, nnkIdent
-                if b.len == 1:
-                        error("Invalid call with the name of: " & name.strVal, b)
-                        return
-                let isLabel = b[1].kind == nnkStmtList
-                addToString(name.toStrLit(), ":\n")
-                if isLabel:
-                        for i in 1 ..< b.len:
-                                result.add ppcImpl(c, b[i])
-        of nnkStmtList:
-                for n in b:
-                        result.add ppcImpl(c, n)
-        of nnkCommand:
-                let toStrNode = newStrLitNode("")
-                let commandIdent = b[0]
-                if commandIdent.kind == nnkStrLit:
-                        toStrNode.strVal= commandIdent.strVal
-                else:
-                        toStrNode.strVal= commandIdent.repr
-                for i in 1 ..< b.len:
-                        let toAppend = toStrNode.strVal & " " & b[i].repr & 
-                                (if i == b.len - 1:
-                                                "\n"
-                                        else:
-                                                ",")                                
-                        toStrNode.strVal= toAppend
-                result.add infix(c, "&=", prefix(toStrNode, "&"))
-        of nnkBlockStmt:
-                addToString(b)
-        of nnkIdent:
-                addToString(b.toStrLit())
-        of nnkPrefix:
-                let prefixChar = b[0]
-                case prefixChar.strVal:
-                of "%":
-                        addToString(b[1])
-                else:
-                        warning "invalid prefix char of " & prefixChar.strVal, b
-        else:
-                error "Invalid node kind: " & $b.kind & ", line: " & b.repr, b
-                
-macro ppc*(x: untyped): untyped =
-        let resultingCode = genSym(nskVar, "result")
-        result = newStmtList()
-        result.add newVarStmt(resultingCode, newStrLitNode(""))
-        result.add ppcImpl(resultingCode, x)
-        result.add newCall(ident("strip"), resultingCode)
-
-#[ macro ppc*(x: untyped): string =
-        result = newStmtList()
-        let resultingCode = genSym(nskLet, "result")
-        let strLit = toStrLit(x)
-        var strVal = strLit.strVal
-        strVal.removePrefix()
-        strVal = strVal.replace("\"", "")
-        strLit.strVal = strVal
-        let p = prefix(strLit, "&")
-        result.add newLetStmt(resultingCode, p)
-        result.add resultingCode ]#
 
 template description*(a: string): CodeSectionNode =
         CodeSectionNode(kind: DescriptionNode, description: a)

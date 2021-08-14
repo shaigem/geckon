@@ -1,3 +1,3 @@
-import geckon / [codes, assembler, gecko, common]
+import geckon / [ppcasm, ppcutils, codes, assembler, gecko]
 
-export codes, assembler, gecko, common
+export ppcasm, ppcutils, codes, assembler, gecko
