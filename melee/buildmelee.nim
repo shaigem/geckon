@@ -1,6 +1,6 @@
 import geckon
 
-const AllCodes = importFrom "./codes/"
+const AllCodes = importFrom "./source/"
 
 build:
     includeAllCodes AllCodes
