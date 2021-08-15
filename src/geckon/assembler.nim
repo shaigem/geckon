@@ -10,7 +10,7 @@ const
     AsmExtension = ".asm"
     ElfExtension = ".o"
     NimFileExtension = ".nim"
-
+    LowercaseLetters = 'a' .. 'z'
 type
     Assembler* = object
         codes: seq[CodeNode]
@@ -118,8 +118,8 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
         for section in codeToAssemble.sections:
             echo "section: type = ", section.kind, ", targetAddress = ",
                     section.targetAddress
-
-            let codeNamePrefix = "_" & codeToAssemble.name.toLower().split(" ").mapIt(it[
+            # TODO code name limit
+            let codeNamePrefix = "_" & codeToAssemble.name.toLower().split(" ").filterIt(it[0] in LowercaseLetters).mapIt(it[
                 0]).join() & "_" & section.targetAddress
             let assemblyFilePathNoExt = assembleCodeFilePath & codeNamePrefix
             let assemblyFilePath = assemblyFilePathNoExt & AsmExtension
