@@ -2,14 +2,15 @@
 
 A simple build framework for creating ASM Gecko codes in Nim.
 
-This is mainly targeted for creating Gecko codes for [Super Smash Bros. Melee](https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee).
-
-Note: `geckon` is still in a very early stage. The APIs for creating codes are subject to change.
+Note: `geckon` is still in development. The APIs for creating codes are subject to change.
 
 ## Usage
 
+Please see the [melee](melee) folder for examples of real Gecko codes written for [Super Smash Bros. Melee](https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee).
+
+### Simple Example
+
 ```nim
-# codes.nim
 import geckon
 
 defineCodes:
@@ -32,6 +33,8 @@ defineCodes:
 build:
     # can specify as many codes as you want
     addCodes Codes
+    # by default, all generated .asm and .o files are kept in a folder called 'generated'
+    # can specify `keepObjFiles = false` to remove all .o files and keep only .asm files
     output:
         writeCodesToFile "./codes.txt"
 ```
