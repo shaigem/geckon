@@ -15,6 +15,7 @@ type CodeSectionNode* = object
 
 type CodeNode* = object
         name*: string
+        path*: string
         authorsSection*: CodeSectionNode
         descriptionSection*: CodeSectionNode
         sections*: seq[CodeSectionNode]
@@ -23,8 +24,8 @@ func hasCodeSections*(codeNode: CodeNode): bool = codeNode.sections.len != 0
 
 func toSnakeCase*(codeName: string): string = codeName.toLower().replace(" ", "_")
 
-proc newCodeNode*(name: string): CodeNode =
-        result = CodeNode(name: name, authorsSection: CodeSectionNode(
+proc newCodeNode*(name: string, path: string): CodeNode =
+        result = CodeNode(name: name, path: path, authorsSection: CodeSectionNode(
                         kind: AuthorsNode), descriptionSection: CodeSectionNode(
                         kind: DescriptionNode))
 
@@ -49,7 +50,8 @@ macro createCode*(name: string, codeSection: untyped): untyped =
         result = newStmtList()
         let procBody = newStmtList()
         let res = genSym(nskVar, "r")
-        procBody.add newVarStmt(res, newCall(bindSym"newCodeNode", name))
+        let path = newDotExpr(newCall(ident("instantiationInfo"), newNimNode(nnkExprEqExpr).add(ident "fullPaths").add(ident("true"))), ident("filename"))
+        procBody.add newVarStmt(res, newCall(bindSym"newCodeNode", name, path))
         for bodyNode in codeSection:
                 let bodyNodeRepr = bodyNode.repr
                 if bodyNodeRepr.startsWith("authors"):

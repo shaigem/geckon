@@ -21,7 +21,6 @@ proc ppcImpl(c, b: NimNode): NimNode =
         template addToString(a: untyped, newLineSuffix: string{lit} = "\n"): untyped =
                 let code = infix(a, "&", newStrLitNode(newLineSuffix))
                 let infix = infix(c, "&=", code)
-                echo infix.repr
                 result.add infix
 
         case b.kind:
@@ -60,7 +59,6 @@ proc ppcImpl(c, b: NimNode): NimNode =
                 addToString(b.toStrLit())
         of nnkPrefix:
                 let prefixChar = b[0]
-                echo prefixChar.kind
                 case prefixChar.strVal:
                 of "%":
                         addToString(b[1])

@@ -1,4 +1,4 @@
-import codes, gecko, system, osproc, os, std/tempfiles, std/with, strutils,
+import codes, gecko, system, osproc, os, std/with, strutils,
         sequtils, macros
 
 const
@@ -6,15 +6,16 @@ const
     BaseObjCopyArguments = ["-O", "binary", "$in", "$out"]
     AssemblerCmd = "powerpc-eabi-as"
     ObjCopyCmd = "powerpc-eabi-objcopy"
-    TempDir = "./temp/"
-    TempAsmExtension = ".asmtmp"
-    TempElfExtension = ".o"
+    AsmDir = "./generated/"
+    AsmExtension = ".asm"
+    ElfExtension = ".o"
     NimFileExtension = ".nim"
 
 type
     Assembler* = object
         codes: seq[CodeNode]
         args: seq[string]
+        keepObjFiles, keepAsmFiles: bool
 
 proc getWorkingDir(resource: static string): static string =
     splitFile(instantiationInfo(0, fullPaths = true).filename).dir / resource
@@ -82,7 +83,7 @@ proc includeCode*(assembler: var Assembler, code: CodeNode) =
 
 proc initAssembler*(args: openArray[string] = BaseAssemblerArguments,
         codes: openArray[CodeNode] = []): Assembler =
-    result = Assembler()
+    result = Assembler(keepObjFiles: true, keepAsmFiles: true)
     result.args.add args
     result.codes.add codes
 
@@ -95,7 +96,9 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
     let codes = assembler.codes
     if codes.len == 0:
         raise newException(CatchableError, "No codes to assemble")
-    discard existsOrCreateDir(TempDir)
+    if dirExists(AsmDir):
+        removeDir(AsmDir)
+    createDir(AsmDir)
     result = newSeqOfCap[GeckoCode](codes.len)
     for codeToAssemble in codes:
         if not codeToAssemble.hasCodeSections():
@@ -104,44 +107,46 @@ proc assemble*(assembler: Assembler): seq[GeckoCode] =
         var geckoCode = initGeckoCode(codeToAssemble.name,
                 codeToAssemble.authorsSection.authors,
                 codeToAssemble.descriptionSection.description)
-        let codeNamePrefix = codeToAssemble.name.toLower().split(" ").mapIt(it[
-                0]).join()
-        let tempAssembleDir = createTempDir(codeNamePrefix, "", TempDir)
 
+        let (assembleDir, codeFileName, _) = AsmDir.joinPath(relativePath(codeToAssemble.path, getCurrentDir())).splitFile()
+        let assembleCodeFilePath = assembleDir.joinPath(codeFileName)
+        try:
+            createDir(assembleDir)
+        except:
+            echo getCurrentExceptionMsg()
         # assemble each patch/section of the gecko code
         for section in codeToAssemble.sections:
             echo "section: type = ", section.kind, ", targetAddress = ",
                     section.targetAddress
+
+            let codeNamePrefix = "_" & codeToAssemble.name.toLower().split(" ").mapIt(it[
+                0]).join() & "_" & section.targetAddress
+            let assemblyFilePathNoExt = assembleCodeFilePath & codeNamePrefix
+            let assemblyFilePath = assemblyFilePathNoExt & AsmExtension
+            let assemblyObjFilePath = assemblyFilePathNoExt & ElfExtension
             # first we must write out the asm code to a file
-            let (tempAsmFile, tempAsmFilePath) = createTempFile("", "-" &
-                    section.targetAddress & TempAsmExtension, tempAssembleDir)
-            tempAsmFile.write(section.code)
-            tempAsmFile.close()
+            writeFile(assemblyFilePath, section.code)
             # now run the assembler command using the temp asm file
-
-            var tempAssembledFilePath = tempAsmFilePath
-            tempAssembledFilePath.removeSuffix(TempAsmExtension)
-            tempAssembledFilePath &= TempElfExtension
-
             block assemble:
                 let (output, success) = executeAssembleCommand(
-                        tempAssembledFilePath, tempAsmFilePath, assembler.args)
+                        assemblyObjFilePath, assemblyFilePath, assembler.args)
                 if not success:
                     raise newException(CatchableError,
                             "Could not assemble your asm codes. " & output)
             block copyOnlyBinary:
-                let (output, success) = executeObjCopyCommand(tempAssembledFilePath)
+                let (output, success) = executeObjCopyCommand(assemblyObjFilePath)
                 if not success:
                     raise newException(CatchableError,
                             "Could not perform obj copy on your asm codes. " & output)
-
-            let assembledFile = open(tempAssembledFilePath, fmRead)
-            defer: assembledFile.close()
+            let assembledFile = open(assemblyObjFilePath, fmRead)
             let codeType = initGeckoCodeType(($section.kind).toCodeTypeKind(),
                     section.targetAddress, assembledFile.readAll())
+            assembledFile.close()
             geckoCode.codeTypes.add codeType
-
-        defer: removeDir(tempAssembleDir, false)
+            if not assembler.keepObjFiles:
+                removeFile assemblyObjFilePath
+            if not assembler.keepAsmFiles:
+                removeFile assemblyFilePath
         result.add geckoCode
 
 template build*(b: untyped): untyped =
@@ -151,7 +156,6 @@ template build*(b: untyped): untyped =
 
 template output*(a, b: untyped): untyped =
     var a: Assembler
-    #let codes {.inject.} = a.assemble()
     let codes = a.assemble()
     with codes:
         b
