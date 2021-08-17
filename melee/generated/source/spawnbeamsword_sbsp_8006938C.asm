@@ -1,6 +1,6 @@
 mflr r0
 stw r0, 0x00000004(r1)
-stwu r1, -(0x00000038 + 0x00000078)(r1)
+stwu r1, -(56 + 120)(r1)
 stmw r20, 0x00000008(r1)
 lbz r3, 0x0000000C(r3)
 cmpwi r3, 0
@@ -39,8 +39,8 @@ mtctr r12
 bctrl
 Exit:
 lmw r20, 0x00000008(r1)
-lwz r0, (0x00000038 + 0x00000004 + 0x00000078)(r1)
-addi r1, r1, 0x00000038 + 0x00000078
+lwz r0, (56 + 0x00000004 + 120)(r1)
+addi r1, r1, 56 + 120
 mtlr r0
 mr r3, r31
 lwz r0, 0x0000004C(sp)

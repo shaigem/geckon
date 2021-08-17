@@ -1,17 +1,19 @@
 import ppcasm
 
-template backup*(): string = 
+const BackupFreeSpaceOffset*: int16 = 0x38
+
+template backup*(space: int16 = 0x78): string =
     ppc:
         mflr r0
         stw r0, 0x4(r1)
-        stwu r1,-(0x38 + 0x78)(r1) # make space for 12 registers
-        stmw r20,0x8(r1)
+        stwu r1, -({BackupFreeSpaceOffset} + {space})(r1)
+        stmw r20, 0x8(r1)
 
-template restore*(): string = 
+template restore*(space: int16 = 0x78): string =
     ppc:
-        lmw r20,0x8(r1)
-        lwz r0, (0x38 + 0x4 + 0x78)(r1)
-        addi r1,r1,0x38 + 0x78
+        lmw r20, 0x8(r1)
+        lwz r0, ({BackupFreeSpaceOffset} + 0x4 + {space})(r1)
+        addi r1, r1, {BackupFreeSpaceOffset} + {space}
         mtlr r0
 
 template load*(address: string, reg: Register = r12): string =
@@ -31,5 +33,5 @@ template branch*(address: string, reg: Register = r12): string =
         mtctr {$reg}
         bctr
 
-template emptyBlock*(): string = 
+template emptyBlock*(): string =
     block: ""
