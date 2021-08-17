@@ -84,7 +84,7 @@ template `%`*(f: untyped): string =
 
 template `bne-`*(label: untyped): string =
     ppc:
-        "bne-"label
+        "bne-" label
 
 proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
     "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $mb & ", " & $me
