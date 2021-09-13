@@ -86,6 +86,14 @@ template `bne-`*(label: untyped): string =
     ppc:
         "bne-" label
 
+template `bge-`*(label: untyped): string =
+    ppc:
+        "bge-" label
+
+template `ble-`*(label: untyped): string =
+    ppc:
+        "ble-" label
+
 proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
     "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $mb & ", " & $me
 

@@ -1,0 +1,6 @@
+stfs f0, 0x00000080(r4)
+stfs f0, 0x00000084(r4)
+lwz r3, 0x0000010C(r4)
+lwz r3, 4(r3)
+lfs f0, 0x000000EC(r3)
+stfs f0, 0x000000B4(r4)

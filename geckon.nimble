@@ -10,6 +10,3 @@ bin = @["geckon"]
 # Dependencies
 
 requires "nim >= 1.5.1"
-
-task melee, "Create melee gecko codes":
-  exec "nim r melee/buildmelee.nim"
