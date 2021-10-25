@@ -17,9 +17,6 @@ import geckon
 # 8015a560 - CH taggoopa start action
 # 0x8015a3f4 - CH taghakusyu start action
 
-# 0x134, 0x124, 0x138, 0x130
-# 0x184 - tagcancel
-
 # mh follow to grab: 
 # 01 47 00 00 00 00 01 00 00 00 80 15 43 60 80 15 43 E8 80 15 44 2C 80 15 45 9C 80 07 61 C8
 # 00 00 01 48 00 00 00 00 01 00 00 00 80 15 46 20 80 15 46 70 80 15 46 B4 80 15 46 D4 80 07 61 C8
@@ -38,13 +35,8 @@ import geckon
  ]#
 
 const
-    # Custom functions
-    GenericTsukamuFunction = "0x8017c0c8"
     MhTagTsukamuSetupFunction = "0x801510b8"
-    ChTagTsukamuFunction = "0x8015b17c"
-    MhTagTsukamuOnGrabSelfFunction = "0x801510bc"
     TagNigiruActionFunction = "0x801510c0"
-
     BossGetFighterGObj = "0x8015C3E8"
     BossUnk2Function = "0x8015C31C"
     SetupGrabParamsFunction = "0x8007E2D0"
@@ -55,10 +47,7 @@ const
     ChTagTsukamuActionStateId = 380
     ChTagNigiruActionStateId = 381
     ChTagCancelActionStateId = 383
-    MagicNumber = 69
 
-# mh y = 34
-# ch y = 34
 defineCodes:
 
     createCode "Restore Tagtsukamu":
@@ -221,96 +210,6 @@ defineCodes:
                 # r3 must be fighter gobj
                 mr r3, r30
                 %branchLink("0x8015c358")
-
-#[         # Generic Tagtsukamu action state function
-        patchInsertAsm "8017c0c8":
-            # inputs
-            # r3 = source fighter gobj
-            # r4 = partner char id
-            # r5 = Tagtsukamu state id
-            # r6 = ? for grab... 0x80 mh or 0x100 ch
-            # r7 = OnGrabFighter_Self cb
-            # r8 = OnGrabFighter_Victim cb
-            # f1 = ??
-            # f2 = ??
-
-            # Check if valid char ID for hands
-            cmpwi r4, 0x1C
-            beq Start
-            cmpwi r4, 0x1B
-            bne OldExit
-
-            Start:
-
-                Backup:
-                    %backup
-                    # backed up registers
-                    # r31 = fighter data
-                    # r30 = partner gobj
-                    # r29 = Tagtsukamu action state id
-                    # r28 = ? for grab
-                    # r27 = OnGrabFighter_Self cb
-                    # r26 = OnGrabFighter_Victim cb
-                    lwz r31, 0x2C(r3) # source fighter data
-                    mr r29, r5
-                    mr r28, r6
-                    mr r27, r7
-                    mr r26, r8
-
-                # Get partner gobj
-                # r3 = partner char id
-                mr r3, r4
-                %branchLink(BossGetFighterGObj) # returns gobj in r3
-                stw r3, 0x1A5C(r31) # store partner gobj
-                mr r30, r3 # save partner gobj
-
-                # Check if source is Master Hand
-                # We will switch Crazy Hand's Action State to Tagtsukamu
-                lwz r4, 0x4(r31) # internal char id
-                cmpwi r4, 0x1B
-                bne ChangeActionState
-                # Check partner's state??
-                %branchLink(BossUnk2Function)
-                cmpwi r3, 0
-                bne ChangeActionState
-                # Change Crazy Hand's Action State
-                mr r3, r30 # use partner's gobj
-                li r4, 0x1B
-                li r5, {ChTagTsukamuActionStateId}
-                li r6, 0x100
-                %load("0x80169288", r7)
-                %load("0x8016b548", r8)
-                lfs f1, -0x58F4(rtoc)
-                lfs f2, -0x58F8(rtoc)
-                %branchLink("0x8017c0c8")
-
-                # Change action state to Tagtsukamu
-                ChangeActionState:
-                    # also uses f1 and f2
-                    lwz r3, 0(r31)
-                    li r4, r29
-                    li r5, 0
-                    li r6, 0
-                    fmr f3, f1
-                    %branchLink("0x800693AC")
-                    lwz r3, 0(r31)
-                    %branchLink("0x8006EBA4")
-
-                # Setup Grab parameters
-                %load(MhTagTsukamuOnGrabSelfFunction, r5)# OnGrabFighter_Self
-                %load("0x80155A58", r7) # OnGrabFighter_Victim
-                mr r3, r31 # fighter data
-                li r4, r28
-                li r6, 0
-                %branchLink(SetupGrabParamsFunction)
-                li r0, 0
-                stw r0, 0x2360(r31)
-
-            %restore
-            blr
-            
-            OldExit:
-                mflr r0 ]#
 
         # MH Tagtsukamu action state function patch
         patchInsertAsm "801510b8":
@@ -566,202 +465,3 @@ defineCodes:
 
             OriginalExit:
                 stwu sp, -0x0020(sp)
-
-#[         # MH Tagnigiru action function
-        # input r3 = fighter gobj
-        patchInsertAsm "801510c0":
-            cmpwi r4, 343
-            beq OriginalExit
-
-            %backup
-
-            # prolog
-            # r31 = fighter gobj
-            # r30 = fighter data
-            mr r31, r3
-            lwz r30, 0x2C(r3)
-
-            # set unknown var to 0
-            li r0, 0
-            stw r0, 0x2204(r30)
-
-            # change action state
-            li r4, {MhTagNigiruActionStateId}
-            lfs f1, -0x59C8(rtoc)
-            li r5, 0
-            lfs f2, -0x59C4(rtoc)
-            li r6, 0
-            fmr f3, f1
-            %branchLink("0x800693AC")
-            mr r3, r31
-            %branchLink("0x8006EBA4")
-
-            # set unknown...
-            lbz r0, 0x2222(r30)
-            li r3, 1
-            rlwimi r0, r3, 5, 26, 26
-            stb r0, 0x2222(r30)
-
-            # call setgrabbable flag
-            mr r3, r30
-            li r4, 511
-            %branchLink(GrabSetGrabbableFlagFunction)
-
-            # kill all velocity
-            mr r3, r31
-            %branchLink("0x8007E2FC")
-
-            # change victim's A/S to CaptureDamageMasterHand
-            lwz r3, 0x1A58(r30)
-            %branchLink("0x80155B80")
-
-            # end func
-            %restore
-            blr
-            
-            OriginalExit:
-                stwu sp, -0x0020(sp) ]#
-#[ 
-        # MhTagTsukamuOnGrabSelfFunction
-        patchInsertAsm "801510bc":
-            cmpwi r4, 343
-            beq OriginalExit
-
-            %backup
-            li r4, 0
-            li r0, 1
-            lfs f0, -0x5A14(rtoc)
-            lwz r5, 0x2C(r3)
-            stfs f0, 0x88(r5)
-            stfs f0, 0x84(r5)
-            stfs f0, 0x80(r5)
-            stw r0, 0x2360(r5)
-            lbz r0, 0x221E(r5)
-            rlwimi r0, r4, 1, 30, 30
-            stb r0, 0x221E(r5)
-            
-            mr r31, r3
-            # play catch gfx
-            lwz r3, 0x1A58(r5)
-            li r4, 537 # id
-            li r5, 5 # bone
-            li r6, 0
-            li r7, 0
-            addi r8, sp, {BackupFreeSpaceOffset}
-            addi r9, sp, {BackupFreeSpaceOffset} + 0xC
-            li r0, 0
-            stw r0, 0x0(r8)
-            stw r0, 0x4(r8)
-            stw r0, 0x8(r8)
-            li r0, 0
-            stw r0, 0x0(r9)
-            stw r0, 0x4(r9)
-            stw r0, 0x8(r9)
-            %branchLink("0x8009f834")
-            # play catch sound
-            lwz r3, 0x2C(r31)
-            lis r4, 0x5
-            subi r4, r4, 7663
-            li r5, 127 # volume
-            li r6, 64
-            %branchLink("0x80088148") # play char sfx
-            %restore
-            blr
-            
-            OriginalExit:
-                li r6, 0 ]#
-
-#[         # CH tagtsukamu action state func patch
-        patchInsertAsm "8015b17c":
-            cmpwi r4, 387
-            beq OriginalExit
-
-            %backup
-            # r31 = fighter gobj
-            # r3 = fighter gobj
-            mr r31, r3 # backup fighter gobj
-            li r4, {ChTagTsukamuActionStateId}
-            lfs f1, -0x59C8(rtoc)
-            li r5, 0
-            lfs f2, -0x59C4(rtoc)
-            li r6, 0
-            fmr f3, f1
-            %branchLink("0x800693AC")
-            mr r3, r31
-            %branchLink("0x8006EBA4")
-            %restore
-            blr
-            OriginalExit:
-                stw r0, 0x4(sp) ]#
-            
-
-#[         # MH Tagtsukamu Action Setup Function
-        patchInsertAsm "8015143C":
-            # r31 has fighter gobj saved
-            
-            # r3 has fighter gobj here still
-            li r4, 385 # mh Tagtsukamu action id
-            lfs f1, -0x59C8(rtoc)
-            li r5, 0
-            lfs f2, -0x59C4(rtoc)
-            li r6, 0
-            fmr f3, f1
-            %branchLink("0x800693AC")
-            mr r3, r31
-            %branchLink("0x8006EBA4")
-
-            # setup grab
-            %load("0x80151440", r5)# OnGrabFighter_Self
-            %load("0x80155A58", r7) # OnGrabFighter_Victim
-            lwz r3, 0x2C(r31)
-            li r4, 0x100
-            li r6, 0
-            %branchLink("0x8007E2D0") # setupGrabParameters
-            li r0, 0
-            stw r0, 0x2360(r31)
-
-            Epilog:
-                %branch("0x80151470")
-
-        # MH Tagtsukamu OnGrabFighter_Self callback 
-        patchInsertAsm "80151440":
-            %backup
-            addi r31, r3, 0
-            li r4, 0
-            li r0, 1
-            lwz r5, 0x2C(r3)
-            stw r0, 0x2360(r5) # ???
-            lbz r0, 0x221E(r5)
-            rlwimi r0, r4, 1, 30, 30
-            stb r0, 0x221E(r5)
-
-            mr r3, r31 # fighter gobj
-            li r4, 386 # mh Tagnigiru action id
-            lfs f1, -0x59C8(rtoc)
-            li r5, 0
-            lfs f2, -0x59C4(rtoc)
-            li r6, 0
-            fmr f3, f1
-            %branchLink("0x800693AC")
-            mr r3, r31
-            %branchLink("0x8006EBA4")
-
-#             lwz r30, 0x2C(r31) # load fighter data struct
-#             lbz r0, 0x2222(r30)
-#             li r3, 1
-#             rlwimi r0, r3, 5, 26, 26
-#             stb r0, 0x2222(r30)
-#             mr r3, r30
-#             li r4, 0x1ff
-#             %branchLink("0x8007E2F4") # Grab_SetGrabbableFlag
-# #            mr r3, r31
-#             lwz r3, 0x1A58(r30)
-#             %branchLink("0x80155B80") # Set grabbed target's action to CapturedamageMasterhand
-
-
-            %restore
-            blr
-#            %branch("0x80151470")
-
-
- ]#
