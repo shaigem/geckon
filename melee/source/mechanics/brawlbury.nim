@@ -16,6 +16,7 @@ defineCodes:
         authors "Ronnie"
         description "Strong hits unburies players like in Brawl"
         patchInsertAsm "8008ecbc":
+            # TODO this breaks grabs as well, CHECK IF IN BURY A/S INSTEAD
             # Check if in bury
             %`bne-`(InBury)
             b NotInBury # exit if not in bury

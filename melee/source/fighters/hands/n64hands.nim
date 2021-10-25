@@ -20,6 +20,29 @@ defineCodes:
             # set y to starting pos at end of idle action
             nop
 
+        # 800e78b4 collision for fox up b mid
+
+        # drill move instant start
+        patchInsertAsm "8015098C":
+            mr r3, r30
+            %branchLink("0x801521DC")
+            %branch("0x801509B8")
+
+        patchInsertAsm "8015236c":
+            # add collision to drill move
+            %backup
+            mr r31, r3
+            %branchLink("0x800822a4")
+            cmpwi r3, 0
+            beq Exit
+
+            li r3, 99
+            
+            Exit:
+                %restore
+                blr
+
+
         # fix direction for mh gun
         patchInsertAsm "801532ac":
             # f0 contains 0.0
@@ -79,11 +102,17 @@ defineCodes:
             %backup
             mr r29, r3
             lwz r31, 0x2C(r3)
-            lwz r4, 0x10C(r31)
-            lwz r30, 0x4(r4)
+#            lwz r4, 0x10C(r31)
+#            lwz r30, 0x4(r4)
+
             %branchLink("0x80085134")
 
+            lis r4, 2 # TODO temp speed, redo this part...
+            stw r4, {BackupFreeSpaceOffset}(sp)
+            psq_l f1, {BackupFreeSpaceOffset}(sp), 1, 5
+
             lfs f0, 0x620(r31) # left stick x
+            fmuls f0, f0, f1
             stfs f0, 0x80(r31) # set x vel
 
             SetVelY:
@@ -91,6 +120,8 @@ defineCodes:
                 lfs f0, 0x624(r31) # left stick y
                 fcmpo cr0, f1, f0
                 beq Exit # if stick y == 0.0, just exit
+                psq_l f1, {BackupFreeSpaceOffset}(sp), 1, 5
+                fmuls f0, f0, f1
                 stfs f0, 0x84(r31)
 
             Exit:

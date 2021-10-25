@@ -82,6 +82,14 @@ macro ppc*(x: untyped): untyped =
 template `%`*(f: untyped): string =
     f
 
+template `bgt-`*(label: untyped): string =
+    ppc:
+        "bgt-" label
+
+template `blt-`*(label: untyped): string =
+    ppc:
+        "blt-" label
+
 template `bne-`*(label: untyped): string =
     ppc:
         "bne-" label

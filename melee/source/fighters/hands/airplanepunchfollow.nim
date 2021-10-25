@@ -35,7 +35,83 @@ defineCodes:
             lfs f0, 0xec(r3) # load y pos for fly in punch
             stfs f0, 0xB4(r4) # set y pos
 
-        patchInsertAsm "8015bff8":
+        patchInsertAsm "8015bf98":
+
+            addi r3, r31, 0xB0
+            addi r4, sp, 0x14
+            addi r5, r31, 0x80
+            fmr f1, f31
+            bl CheckMovement
+
+            lwz r3, 0x10(r31) # check action id is bg slap down move (mh)
+            cmpwi r3, 371
+            beq Exit
+            cmpwi r3, 373 # bg slap down move (ch)
+            beq Exit
+
+            addi r3, r31, 0xB4
+            addi r4, sp, 0x18
+            addi r5, r31, 0x84
+            fmr f1, f31
+            bl CheckMovement
+
+            b Exit
+
+            CheckMovement:
+                %backup
+                # input: r3 - hand pos x/y ptr
+                # r4 - target pos x/y ptr
+                # r5 - hand accel vel x/y ptr
+                # f1 - speed
+
+                stfd f31, {BackupFreeSpaceOffset}(sp)
+                fmr f31, f1
+
+                lfs f2, 0(r4) # target pos
+                lfs f1, 0(r3) # hand pos
+                lfs f0, -0x57E8(rtoc)
+
+                fsubs f1, f2, f1
+                fcmpo cr0, f1, f0
+                %`bge-` PosBiggerThanTarget
+
+                fneg f0, f1
+                b CheckPos
+
+                PosBiggerThanTarget:
+                    fmr f0, f1 # hand pos to f0
+                
+                CheckPos:
+                    fcmpo cr0, f0, f31 # hand pos less than our speed var
+                    %`ble-` HandPosLessSpeed
+                
+                lfs f0, -0x57E8(rtoc)
+                fcmpo cr0, f1, f0
+                %`ble-` MoveLeft # hand pos less than 0
+
+                fmr f0, f31 # move our speed into f0
+                b SetAccelVelocSpeed
+
+                MoveLeft:
+                    fneg f0, f31
+                
+                SetAccelVelocSpeed:
+                    stfs f0, 0(r5)
+                
+                b Epilog
+
+                HandPosLessSpeed:
+                    stfs f1, 0(r5) # store current hand pos to accel
+
+                Epilog:
+                    lfd f31, {BackupFreeSpaceOffset}(sp)
+                    %restore
+                    blr
+            
+            Exit:
+                %branch("0x8015bff8")
+        
+#[         patchInsertAsm "8015bff8":
             
             lwz r3, 0x10(r31) # check if is bg slap down move (mh)
             cmpwi r3, 371
@@ -75,3 +151,4 @@ defineCodes:
                     stfs f0, 0x0084(r31)
                 Exit:
                     lwz r0, 0x0034(sp) # original code line
+ ]#
