@@ -111,17 +111,25 @@ defineCodes:
             stw r4, {BackupFreeSpaceOffset}(sp)
             psq_l f1, {BackupFreeSpaceOffset}(sp), 1, 5
 
+            lfs f2, -0x5B54(rtoc) # load 0.0
+
+
             lfs f0, 0x620(r31) # left stick x
+            fcmpo cr0, f2, f1
+            beq SetVelY
             fmuls f0, f0, f1
+            lfs f1, 0x80(r31)
+            fadds f0, f1, f0
             stfs f0, 0x80(r31) # set x vel
 
             SetVelY:
-                lfs f1, -0x5B54(rtoc) # load 0.0
                 lfs f0, 0x624(r31) # left stick y
-                fcmpo cr0, f1, f0
+                fcmpo cr0, f2, f0
                 beq Exit # if stick y == 0.0, just exit
                 psq_l f1, {BackupFreeSpaceOffset}(sp), 1, 5
                 fmuls f0, f0, f1
+                lfs f1, 0x84(r31)
+                fadds f0, f1, f0
                 stfs f0, 0x84(r31)
 
             Exit:

@@ -1,4 +1,4 @@
-import geckon
+import geckon, ../../melee
 
 
 # 80156f34 - player request input for tag tsukamu CH
@@ -53,6 +53,34 @@ defineCodes:
     createCode "Restore Tagtsukamu":
         authors "Ronnie"
         description "Restores the unused tag team attack for Master Hand and Crazy Hand"
+
+        # Handles where to move when the CPU decided to use the Tagtsukamu tag team move
+        patchInsertAsm "8015695c":
+            stfs f0, 0x002C(sp) # original code line
+            mr r3, r31
+            %load("0x8015aac8", r4)
+            addi r5, sp, 36
+            %branchLink("0x8015Ba34")
+
+        # CH CPU makes the request to MH to use Tagtsukamu
+        # This checks if the CPU decided to use another tag team move and then
+        # rolls another random number to see if we should use Tagtsukamu or use the original
+        # move decided by the CPU.
+        patchInsertAsm "80156634":
+            # CPU decision rolled a 3 which would use Taggoopa (?)
+            cmpwi r3, 3
+            bne Exit
+            # Roll once more to see if we should just continue with Taggoopa or use Tagtsukamu
+            %hsdRandi(max = 1, inclusive = true)
+            cmpwi r3, 0
+            bne Exit
+
+            TagTsukamu:
+                li r3, 0x17C
+                %branch("0x8015664c")
+            
+            Exit:
+                lbz r0, 0(r26) # original code line
 
         # MH responds to tagtsukamu request from ch
         patchInsertAsm "801503cc":

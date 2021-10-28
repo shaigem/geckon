@@ -11,16 +11,22 @@ bctrl
 lis r4, 2
 stw r4, 56(sp)
 psq_l f1, 56(sp), 1, 5
+lfs f2, 0xFFFFA4AC(rtoc)
 lfs f0, 0x00000620(r31)
+fcmpo cr0, f2, f1
+beq SetVelY
 fmuls f0, f0, f1
+lfs f1, 0x00000080(r31)
+fadds f0, f1, f0
 stfs f0, 0x00000080(r31)
 SetVelY:
-lfs f1, 0xFFFFA4AC(rtoc)
 lfs f0, 0x00000624(r31)
-fcmpo cr0, f1, f0
+fcmpo cr0, f2, f0
 beq Exit
 psq_l f1, 56(sp), 1, 5
 fmuls f0, f0, f1
+lfs f1, 0x00000084(r31)
+fadds f0, f1, f0
 stfs f0, 0x00000084(r31)
 Exit:
 mr r3, r29
