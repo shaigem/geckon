@@ -11,18 +11,25 @@ const
     Cape = 0xA
     Grounded = 0x9
 
+const
+    BuryWaitActionStateId = 295
+
 defineCodes:
-    createCode "Brawl Bury Mechanics":
+    createCode "Brawl Bury Mechanics v1.0.4":
         authors "Ronnie"
         description "Strong hits unburies players like in Brawl"
         patchInsertAsm "8008ecbc":
-            # TODO this breaks grabs as well, CHECK IF IN BURY A/S INSTEAD
-            # Check if in bury
-            %`bne-`(InBury)
-            b NotInBury # exit if not in bury
+            # Check if we are in a flinchless state
+            %`bne-`(CheckInBuryWaitState) # we are in flinchless state, so check if we are in a bury action state
+            b NotInBury # exit as if we are not in a flinchless state
+
+            CheckInBuryWaitState:
+                lwz r3, 0x10({RegisterFighterData}) # load current action state ID
+                cmpwi r3, {BuryWaitActionStateId}
+                %`bne-`(OriginalBuryCheck) # if not in bury wait A/S, go back to the original check function
             
             # If in bury, check if knockback is strong enough to unbury the player
-            # Free to use r3 here but MUST restore after
+            # Free to use r3 here but must restore if branch to NotInBury
             InBury:
 
                 HitEffectChecks:
@@ -56,8 +63,7 @@ defineCodes:
                         ble OriginalBuryCheck # not enough knockback, so don't unbury
 
                 Unbury:
-                    lbz r3, 0x2220({RegisterFighterData}) # restore r3
-                    b NotInBury # treat the hit as if the player isn't buried
+                    b NotInBury # treat the hit as if the player isn't flinchless
 
             OriginalBuryCheck:
                 %branch(OriginalBuryCheckAddress)
@@ -68,4 +74,5 @@ defineCodes:
                 %`.align`(2)
             
             NotInBury:
+                lbz r3, 0x2220({RegisterFighterData}) # restore r3
                 %emptyBlock
