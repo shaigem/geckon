@@ -67,7 +67,7 @@ proc toAsmString(n: NimNode): NimNode =
     of nnkFloatLit:
         result = n.toStrLit
     of nnkIntLit, nnkInt64Lit:
-        result = newIntLitNode(n.intVal).toStrLit()
+        result = newStrLitNode($n.intVal)
     of nnkCall, nnkCommand:
         result = ppcImpl(n)
     of nnkPrefix:
