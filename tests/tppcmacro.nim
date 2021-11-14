@@ -128,7 +128,6 @@ lis r12, 2148864564 @h"""
         type Stuff = enum
             Apple = 0,
             Orange = 1
-
         const a =
             ppc:
                 %calculateOffset(Stuff.Apple.int64)
@@ -163,7 +162,7 @@ li r3, 0"""
                     MoreChecks:
                         %insertAsm(address):
                             cmpwi r4, %no
-                            ble + Exit
+                            ble+ Exit
                         %calculateOffset(0)
                 Exit:
                     nop
