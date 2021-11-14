@@ -12,6 +12,9 @@ import geckon
 /* 801588B0 00155490  4E 80 00 20 */	blr  ]#
 # 80157D30 - fake out punch down physics move logic func 
 
+
+#[ 802f1030 - yubibomb collision with stage (also spawns explosion GFX here)
+802f10b4 - yubibomb collision with player ]#
 const
     EndOfFunctionAddress = "0x801588B0"
     StartFollowFrame = 60
@@ -19,9 +22,14 @@ const
     FollowSpeed = 0.3
 
 defineCodes:
-    createCode "Crazy Hand YubiBomb Follow Player":
+
+    createCode "Crazy Hand Yubibomb Enhancements":
         authors "Ronnie"
         description ""
+
+        patchWrite32Bits "80272c2c":
+            # description "Removes Crazy Hand's bomb GFX & SFX from playing when a bomb hits the ground"
+            b 0x24 # branch to 80272c50, skipping GFX & SFX
 
         patchInsertAsm "801587E0": # yubibomb start action
             lfs f0, -0x5950(rtoc) # load 0
@@ -75,3 +83,5 @@ defineCodes:
                 %`.float`(EndFollowFrame)
                 %`.float`(FollowSpeed)
                 %`.align`(2)
+
+echo Codes

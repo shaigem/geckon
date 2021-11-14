@@ -75,4 +75,3 @@ defineCodes:
             
             NotInBury:
                 lbz r3, 0x2220({RegisterFighterData}) # restore r3
-                %emptyBlock

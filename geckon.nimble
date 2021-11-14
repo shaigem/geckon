@@ -9,4 +9,4 @@ bin = @["geckon"]
 
 # Dependencies
 
-requires "nim >= 1.5.1"
+requires "nim >= 1.6.0"

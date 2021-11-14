@@ -7,6 +7,7 @@ mtctr r12
 bctrl
 cmpwi r3, 0
 bne Exit
+TagTsukamu:
 li r3, 0x0000017C
 lis r12, 0x8015664c @h
 ori r12, r12, 0x8015664c @l
