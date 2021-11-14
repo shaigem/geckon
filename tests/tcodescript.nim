@@ -21,5 +21,3 @@ lfs f1, 6(r31)"""
             s.authors == ["ronnie", "bob"]
             s.description == "my test code"
             s.code == c
-
-
