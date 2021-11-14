@@ -1,3 +1,3 @@
-import geckon / [ppcasm]
+import geckon / [ppcasm, codescript]
 
-export ppcasm
+export ppcasm, codescript

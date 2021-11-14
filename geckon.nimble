@@ -13,3 +13,4 @@ requires "nim >= 1.6.0"
 
 task test, "Run tests":
   exec "nimble c -y -r tests/tppcmacro.nim"
+  exec "nimble c -y -r tests/tcodescript.nim"
