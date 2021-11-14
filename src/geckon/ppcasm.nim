@@ -1,112 +1,146 @@
-import macros
+import std/macros
 
-from strformat import `&`
-from strutils import strip
+proc ppcImpl(n: NimNode): NimNode
+proc toAsmString(n: NimNode): NimNode
+proc parseCommand(n: NimNode, seperator: string = ", "): NimNode
 
-export `&`, strip
-
-type
-    Register* {.pure.} = enum
-        r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14,
-                        r15,
-                r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26,
-                                r27, r28,
-                r29, r30, r31
-        f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14,
-                        f15,
-                f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26,
-                                f27, f28,
-                f29, f30, f31
-    Align* = range[0 .. 12]
-
-proc ppcImpl(c, b: NimNode): NimNode =
-    result = newStmtList()
-
-    template addToString(a: untyped, newLineSuffix: string{
-                        lit} = "\n"): untyped =
-        let code = infix(a, "&", newStrLitNode(newLineSuffix))
-        let infix = infix(c, "&=", code)
-        result.add infix
-
-    case b.kind:
-    of nnkCall:
-        let name = b[0]
-        expectKind name, nnkIdent
-        if b.len == 1:
-            error("Invalid call with the name of: " & name.strVal, b)
-            return
-        let isLabel = b[1].kind == nnkStmtList
-        addToString(name.toStrLit(), ":\n")
-        if isLabel:
-            for i in 1 ..< b.len:
-                result.add ppcImpl(c, b[i])
-    of nnkStmtList:
-        for n in b:
-            result.add ppcImpl(c, n)
-    of nnkCommand:
-        let toStrNode = newStrLitNode("")
-        let commandIdent = b[0]
-        if commandIdent.kind == nnkStrLit:
-            toStrNode.strVal = commandIdent.strVal
+proc parsePrefix(n: NimNode): NimNode =
+    # TODO feels like lots of stuff could be reused
+    expectKind n, nnkPrefix
+    expectKind n[0], nnkIdent
+#    expectIdent n[0], "%"
+    let secondArg = n[1]
+    let lastArg = n[^1]
+    if n[0].strVal == "%*": # TODO probably merge this with %...
+        if secondArg.kind == nnkCall:
+            secondArg[0] = prefix(secondArg[0], "$")
+            secondArg[1] = toAsmString(newPar(secondArg[1]))
+            result = infix(secondArg[0], "&", secondArg[1])
+    elif n[0].strVal == "@":
+        expectLen n, 2
+        expectKind n[1], nnkIdent
+        result = newStrLitNode(n[0].strVal & n[1].strVal)
+    elif n[0].strVal == "%":
+        case secondArg.kind
+        of nnkIdent:
+            result = prefix(secondArg, "$")
+        of nnkCall:
+            if lastArg.kind == nnkStmtList:
+                secondArg.add lastArg
+            result = secondArg
+        of nnkPar:
+            # TODO should we prefix it with $ or let the programmer manually do it?
+            result = prefix(secondArg[0], "$")
+        of nnkCommand:
+            expectKind secondArg, nnkCommand
+            expectLen secondArg, 2
+            secondArg[0] = prefix(secondArg[0], "$")
+            secondArg[1] = toAsmString(secondArg[1])
+            result = infix(infix(secondArg[0], "&", newLit" "), "&", secondArg[1])
         else:
-            toStrNode.strVal = commandIdent.repr
-        for i in 1 ..< b.len:
-            let toAppend = toStrNode.strVal & " " & b[i].repr &
-                    (if i == b.len - 1:
-                        "\n"
-                    else:
-                        ",")
-            toStrNode.strVal = toAppend
-        result.add infix(c, "&=", prefix(toStrNode, "&"))
-    of nnkBlockStmt:
-        addToString(b)
+            error "unknown prefix kind: " & $n[1].kind & "\n" & treeRepr(n)
+
+proc parsePar(n: NimNode): NimNode =
+    expectKind n, nnkPar
+    result = newStmtList()
+    let addSym = bindSym"add"
+    var output = gensym(nskVar, "output")
+    result.add newVarStmt(output, newLit"(")
+    for i, c in n:
+        result.add newCall(addSym, output, toAsmString(c))
+    result.add newCall(addSym, output, newLit")")      
+    result.add output
+
+proc toAsmString(n: NimNode): NimNode =
+    case n.kind
+    of nnkInfix:
+        expectLen n, 3
+        let op = n[0]
+        let ls = n[1]
+        let rs = n[2]
+        result = newStrLitNode(ls.strVal & op.strVal & " " & rs.strVal)
+    of nnkDotExpr:
+        expectLen n, 2
+        result = newStrLitNode(n[0].strVal & " " & n[1].strVal)
     of nnkIdent:
-        addToString(b.toStrLit())
+        result = n.toStrLit
+    of nnkFloatLit:
+        result = n.toStrLit
+    of nnkIntLit, nnkInt64Lit:
+        result = newIntLitNode(n.intVal).toStrLit()
+    of nnkCall, nnkCommand:
+        result = ppcImpl(n)
     of nnkPrefix:
-        let prefixChar = b[0]
-        case prefixChar.strVal:
-        of "%":
-            addToString(b[1])
-        else:
-            error "invalid prefix char of " & prefixChar.strVal, b
+        result = parsePrefix(n)
+    of nnkPar:
+        result = parsePar(n)
     else:
-        error "Invalid node kind: " & $b.kind & ", line: " & b.repr, b
+        error "unknown node kind for parsing to ASM string: " & $n.kind & "\n" & treeRepr(n)
 
-macro ppc*(x: untyped): untyped =
-    let resultingCode = genSym(nskVar, "result")
+proc parseCommand(n: NimNode, seperator: string = ", "): NimNode =
+    expectMinLen n, 1
     result = newStmtList()
-    result.add newVarStmt(resultingCode, newStrLitNode(""))
-    result.add ppcImpl(resultingCode, x)
-    result.add newCall(ident("strip"), resultingCode)
+    let addSym = bindSym"add"
+    var output = gensym(nskVar, "output")
+    result.add newVarStmt(output, newLit"")
+    let endIndex = n.len - 1
+    for i, c in n:
+        result.add newCall(addSym, output, toAsmString(c))
+        let seperator = newLit(if i == 0: " " elif i == endIndex : "" else: seperator)
+        result.add newCall(addSym, output, seperator)
+    result.add output
 
-template `%`*(f: untyped): string =
-    f
+proc parseStmtList(n: NimNode): NimNode =
+    expectKind n, nnkStmtList
+    expectMinLen n, 1
+    result = newStmtList()
+    let addSym = bindSym"add"
+    var parsedList = gensym(nskVar, "parsed")
+    result.add newVarStmt(parsedList, newLit"")
+    let endIndex = n.len - 1
+    for i, c in n:
+        result.add newCall(addSym, parsedList, toAsmString(c))
+        if i < endIndex:
+            result.add newCall(addSym, parsedList, newLit("\n"))
+    result.add parsedList
 
-template `bgt-`*(label: untyped): string =
-    ppc:
-        "bgt-" label
+proc ppcImpl(n: NimNode): NimNode =
+    case n.kind
+    of nnkCall:
+        if n[0].kind == nnkIdent:
+            let name = toAsmString(n[0])
+            let lastNode = n[^1]
+            expectKind lastNode, nnkStmtList
+            let parsed = parseStmtList(lastNode)
+            result = infix(infix(name, "&", newLit(":\n")), "&", parsed)
+        elif n[0].kind == nnkAccQuoted:
+            let acc = n[0]
+            let newIdentNode = ident(acc[0].strVal & acc[1].strVal) # combine (example: .float)
+            n[0] = newIdentNode
+            result = parseCommand(n)
+        elif n[0].kind == nnkIntLit:
+            expectLen n, 2
+            expectKind n[1], {nnkIdent, nnkPrefix}
+            n[1] = toAsmString(newPar(n[1]))
+            result = infix(toAsmString(n[0]), "&", n[1])
+    of nnkCommand:
+        result = parseCommand(n)
+    of nnkStmtList:
+        result = parseStmtList(n)
+    of nnkIdent, nnkDotExpr, nnkInfix, nnkPrefix:
+        result = toAsmString(n)
+    else:
+        error "unknown node kind for body: " & $n.kind & "\n" & treeRepr(n)
 
-template `blt-`*(label: untyped): string =
-    ppc:
-        "blt-" label
-
-template `bne-`*(label: untyped): string =
-    ppc:
-        "bne-" label
-
-template `bge-`*(label: untyped): string =
-    ppc:
-        "bge-" label
-
-template `ble-`*(label: untyped): string =
-    ppc:
-        "ble-" label
-
-proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
-    "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $mb & ", " & $me
-
-proc `.float`*(f: float32): string =
-    ".float " & $f
-
-proc `.align`*(n: Align): string =
-    ".align " & $n
+macro ppc*(n: untyped): string =
+    expectKind(n, nnkStmtList)
+    let addSym = bindSym"add"
+    let res = genSym(nskVar, "result")
+    result = newStmtList()
+    result.add newVarStmt(res, newStrLitNode"")
+    let endIndex = n.len - 1
+    for i, c in n:
+        let parsedLine = ppcImpl(c)
+        let nodeToAdd = if i != endIndex: infix(parsedLine, "&", newStrLitNode("\n")) else: parsedLine
+        result.add newCall(addSym, res, nodeToAdd)
+    result.add res

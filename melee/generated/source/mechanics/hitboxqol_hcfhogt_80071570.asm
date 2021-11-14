@@ -1,1 +1,0 @@
-lbz r3, 0xFFFFFFED(r3)
