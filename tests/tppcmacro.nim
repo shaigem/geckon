@@ -41,10 +41,10 @@ Cat:
         const a =
             ppc:
                 lfs f1, 0x2C(r31)
-                lfs f2, 0x10(r31)
+                lfs f2, -0x10(r31)
         const a2 = """
 lfs f1, 44(r31)
-lfs f2, 16(r31)"""
+lfs f2, -16(r31)"""
         check a == a2
 
     test "command with call nim interop":
@@ -59,7 +59,7 @@ lfs f2, 16(r31)"""
             ppc:
                 lfs f0, 0x10(%regName)
                 lfs f1, %*Stuff.Orange.int64(r20)
-                lfs f1, %*(calculateOffset(Stuff.Orange.int64 + 20) + offset)(%regName)
+                lfs f1, %*(-(calculateOffset(Stuff.Orange.int64 + 20) + offset))(%regName)
                 Bob:
                     lfs f2, %*offset(%regName)
                     lfs f3, %*offset(r20)
@@ -67,7 +67,7 @@ lfs f2, 16(r31)"""
         const a2 = """
 lfs f0, 16(r29)
 lfs f1, 1(r20)
-lfs f1, 2121(r29)
+lfs f1, -2121(r29)
 Bob:
 lfs f2, 2080(r29)
 lfs f3, 2080(r20)
