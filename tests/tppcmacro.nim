@@ -58,11 +58,11 @@ lfs f2, -16(r31)"""
         const a =
             ppc:
                 lfs f0, 0x10(%regName)
-                lfs f1, %*Stuff.Orange.int64(r20)
-                lfs f1, %*(-(calculateOffset(Stuff.Orange.int64 + 20) + offset))(%regName)
+                lfs f1, %%Stuff.Orange.int64(r20)
+                lfs f1, %%(-(calculateOffset(Stuff.Orange.int64 + 20) + offset))(%regName)
                 Bob:
-                    lfs f2, %*offset(%regName)
-                    lfs f3, %*offset(r20)
+                    lfs f2, %%offset(%regName)
+                    lfs f3, %%offset(r20)
                     lfs f4, 0x14(%regName)
         const a2 = """
 lfs f0, 16(r29)

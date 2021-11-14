@@ -11,7 +11,7 @@ proc parsePrefix(n: NimNode): NimNode =
 #    expectIdent n[0], "%"
     let secondArg = n[1]
     let lastArg = n[^1]
-    if n[0].strVal == "%*": # TODO probably merge this with %...
+    if n[0].strVal == "%%": # TODO probably merge this with %...
         if secondArg.kind == nnkCall:
             secondArg[0] = prefix(secondArg[0], "$")
             secondArg[1] = toAsmString(newPar(secondArg[1]))
