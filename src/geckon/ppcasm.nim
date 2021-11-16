@@ -108,5 +108,8 @@ proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
 proc `.float`*(f: float32): string =
     ".float " & $f
 
+proc `.word`*(f: int): string =
+    ".word " & $f
+
 proc `.align`*(n: Align): string =
     ".align " & $n
