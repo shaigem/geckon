@@ -3,8 +3,8 @@ import geckon
 
 const 
     FighterDataOrigSize = 0x23EC # TODO should just get the offset dynamically, also WHY TF does it crash with marth on 20xx
-    ExtCustomHitboxDataSize = 0x8
-    ExtFighterDataSize = ((ExtCustomHitboxDataSize * 4) + 0x4)
+    ExtCustomHitboxDataSize = 0xC
+    ExtFighterDataSize = ((ExtCustomHitboxDataSize * 4) + 0x8)
 const
     FighterDataStart = 0x0
     ExtFighterDataStart = FighterDataStart + FighterDataOrigSize
@@ -13,6 +13,7 @@ const
 # Custom Fighter Data Vars
 const 
     ExtSDIMultiplier = ExtFighterDataStart + ((ExtCustomHitboxDataSize * 4)) + 0x0 # float
+    ExtHitstunModifier = ExtFighterDataStart + ((ExtCustomHitboxDataSize * 4)) + 0x4 # float
 
 
 echo ExtFighterDataSize
@@ -29,6 +30,7 @@ struct extrahitboxdef
 Custom Vars:
 
     SDI Multiplier: float
+
  ]#
 
 
@@ -36,7 +38,7 @@ defineCodes:
     createCode "Fighter Data Hitbox Extension":
         description ""
         authors "Ronnie/sushie"
-        # init default custom fighter hitbox vars
+        # init/reset default custom fighter hitbox vars
         patchInsertAsm "8007127c":
             # r31 = fighter data
             # r0 = hitbox ID
@@ -47,6 +49,10 @@ defineCodes:
             fneg f0, f0
             stfs f0, 0(r30) # hitlag var
             stfs f0, 4(r30) # sdi var
+
+            fsubs f0, f0, f0 # get 0
+            stfs f0, 8(r30) # hitstun var
+
             mulli r3, r0, 312 # orig code line
 
         # sdi multiplier
@@ -66,7 +72,17 @@ defineCodes:
             Exit:
                 %emptyBlock
             
-            # TODO check if source != us???
+            
+        # hitstun mod
+        patchInsertAsm "8008dd70":
+            #hitstun modifier
+            # 8008dd68: loads global hitstun multiplier of 0.4 from plco
+            # f30 = calculated hitstun after multipling by 0.4
+            # r29 = fighter data
+            # f0 = free
+            lfs f0, {ExtHitstunModifier}(r29) # load modifier
+            fadds f30, f30, f0 # hitstun + modifier
+            fctiwz f0, f30 # original code line
 
         # hitlag & sdi multiplier
         patchInsertAsm "8007aafc":
@@ -106,27 +122,29 @@ defineCodes:
                 add r5, r12, r5 # r5 points to the correct spot
 
 
-            lfs f31, 0(r5)
+            lfs f31, 0(r5) # load hitlag multipleir
 
             %`bne-`(Exit)
             # electric
 
             lwz r3, -0x514C(r13)
             lfs f0, 0x01A4(r3) # 1.5 electric hitlag modifier
+            fmuls f0, f0, f31 # 1.5 * extra hitlag
             stfs f0, 0x1960(r25) # store for victim
+            b AfterElect
 
             Exit:
-                lfs f0, 0x1960(r25)
-                fmuls f0, f0, f31 # 1.5 * extra hitlag
-                stfs f0, 0x1960(r25) # store for victim
-
-                lfs f0, 0x1960(r12) # hitlag mod of source
-                fmuls f0, f0, f31
-                stfs f0, 0x1960(r12)
+                stfs f31, 0x1960(r25) # store for victim
                 
-                lfs f31, 4(r5) # load sdi multiplier
-                stfs f31, {ExtSDIMultiplier}(r25) # victim stored
-                %branch("0x8007ab0c")
+                AfterElect:
+                    stfs f31, 0x1960(r12)
+
+                    lfs f31, 4(r5) # load sdi multiplier
+                    stfs f31, {ExtSDIMultiplier}(r25) # victim stored
+
+                    lfs f31, 8(r5) # load hitstun mod
+                    stfs f31, {ExtHitstunModifier}(r25) # victim stored
+                    %branch("0x8007ab0c")
 
 
         # Custom subaction event
@@ -151,8 +169,11 @@ defineCodes:
             lfs f1, 0x8(r6) # load sdi multiplier
             stfs f1, 4(r5) # store sdi multiplier
            
+            lfs f1, 0xC(r6) # load hitstun mod
+            stfs f1, 8(r5) # store hitstun mod
+
             # advance ptr
-            addi r6, r6, 0xC # change depending on # of args
+            addi r6, r6, 0x10 # change depending on # of args
             stw r6, 0x8(r4)
 
             b Exit
