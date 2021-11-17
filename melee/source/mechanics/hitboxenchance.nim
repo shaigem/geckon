@@ -3,7 +3,7 @@ import geckon
 
 const 
     FighterDataOrigSize = 0x23EC # TODO should just get the offset dynamically, also WHY TF does it crash with marth on 20xx
-    ExtCustomHitboxDataSize = 0xC
+    ExtCustomHitboxDataSize = 0x10
     ExtFighterDataSize = ((ExtCustomHitboxDataSize * 4) + 0x8)
 const
     FighterDataStart = 0x0
@@ -30,10 +30,13 @@ struct extrahitboxdef
 Custom Vars:
 
     SDI Multiplier: float
+    Hitstun Modifier: float
 
  ]#
 
 
+# TODO variables & subaction hitbox data should reset ... for example, hitstun modifier is still there when someone uses a throw
+# TODO there was a freeze glitch similar to ice climbers freeze glitch wtf
 defineCodes:
     createCode "Fighter Data Hitbox Extension":
         description ""
@@ -50,8 +53,11 @@ defineCodes:
             stfs f0, 0(r30) # hitlag var
             stfs f0, 4(r30) # sdi var
 
-            fsubs f0, f0, f0 # get 0
+            fsubs f0, f0, f0 # get 0 or use             lfs f0, -0x7700(rtoc) # 0
             stfs f0, 8(r30) # hitstun var
+
+            li r3, 0
+            stb r3, 0xD(r30) # reset flipper flag to 0
 
             mulli r3, r0, 312 # orig code line
 
@@ -83,6 +89,58 @@ defineCodes:
             lfs f0, {ExtHitstunModifier}(r29) # load modifier
             fadds f30, f30, f0 # hitstun + modifier
             fctiwz f0, f30 # original code line
+
+        patchInsertAsm "8007a77c":
+            # reverse direction/angle flipper
+
+            # r3 = source fighter data
+            # r4 = ptr source fthit
+            # r15 = source ptr data
+            addi r18, r15, 2324
+            cmplw r4, r18
+            li r22, 0
+            beq CalculateCustomOff
+
+            addi r18, r18, 312
+            cmplw r4, r18
+            li r22, 1
+            beq CalculateCustomOff
+           
+            addi r18, r18, 312
+            cmplw r4, r18
+            li r22, 2
+            beq CalculateCustomOff      
+            
+            addi r18, r18, 312
+            cmplw r4, r18
+            li r22, 3
+            beq CalculateCustomOff
+            
+            %branch("0x8007ab0c")
+
+            CalculateCustomOff:
+                mulli r22, r22, {ExtCustomHitboxDataSize}
+                addi r22, r22, {ExtFighterDataStart}
+                add r22, r15, r22
+
+            lbz r18, 0xD(r22) # load flipper flags
+
+            cmplwi r18, 0
+            beq Exit
+            lfs f0, 0x2C(r15) # source's direction
+            cmplwi r18, 1 # same direction source is facing
+            beq Exit
+            cmplwi r18, 2 # reverse
+            beq OppositeDirection
+
+            OppositeDirection:
+                fneg f0, f0
+
+            Exit:
+               fmr f24, f0
+
+
+            
 
         # hitlag & sdi multiplier
         patchInsertAsm "8007aafc":
@@ -123,7 +181,7 @@ defineCodes:
 
 
             lfs f31, 0(r5) # load hitlag multipleir
-
+            cmplwi r0, 2
             %`bne-`(Exit)
             # electric
 
@@ -172,8 +230,14 @@ defineCodes:
             lfs f1, 0xC(r6) # load hitstun mod
             stfs f1, 8(r5) # store hitstun mod
 
+            lbz r0, 0x10(r6) # load windbox bool
+            # TODO windbox
+
+            lbz r0, 0x11(r6) # load flipper flags
+            stb r0, 0xD(r5) # store flipper flag
+
             # advance ptr
-            addi r6, r6, 0x10 # change depending on # of args
+            addi r6, r6, 0x14 # change depending on # of args
             stw r6, 0x8(r4)
 
             b Exit
