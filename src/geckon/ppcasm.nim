@@ -94,9 +94,21 @@ template `bne-`*(label: untyped): string =
     ppc:
         "bne-" label
 
+template `beq-`*(label: untyped): string =
+    ppc:
+        "beq-" label
+
+template `bne+`*(label: untyped): string =
+    ppc:
+        "bne+" label
+
 template `bge-`*(label: untyped): string =
     ppc:
         "bge-" label
+
+template `bge+`*(label: untyped): string =
+    ppc:
+        "bge+" label
 
 template `ble-`*(label: untyped): string =
     ppc:

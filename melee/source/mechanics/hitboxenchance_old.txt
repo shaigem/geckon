@@ -32,6 +32,25 @@ Custom Vars:
     SDI Multiplier: float
     Hitstun Modifier: float
 
+
+80076df0 - stores hit attribute that collided with SHIELD
+
+8007a960 - stw r18, 0x1C(r31)
+CalculateKnockback func
+Asuming r18 is the hit attribute of the attacker's fthit
+Stores it into the defender's dmg struct
+
+8007aaf4 - lwz r0, 0x1C(r31)
+This part checks if the hit's attribute is electric,
+then add a hitstun modifier to the defender's attribute
+
+8006d95c - stfs f0, 0x1960(r30)
+Resets the hitlag multiplier to 1.0
+Seems to be called every frame
+Should consider this for resetting certain custom vars like custom hitstun & angle reversible
+
+800768a0 - InitFighterHitbox
+Maybe init/reset custom fighter hitboxvars here
  ]#
 
 
@@ -90,7 +109,7 @@ defineCodes:
             fadds f30, f30, f0 # hitstun + modifier
             fctiwz f0, f30 # original code line
 
-        patchInsertAsm "8007a77c":
+#[         patchInsertAsm "8007a77c":
             # reverse direction/angle flipper
 
             # r3 = source fighter data
@@ -139,7 +158,7 @@ defineCodes:
             Exit:
                fmr f24, f0
 
-
+ ]#
             
 
         # hitlag & sdi multiplier
