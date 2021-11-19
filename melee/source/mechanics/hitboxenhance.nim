@@ -22,7 +22,6 @@ const
 # Size of new hitbox data = last var offset + last var offset.size
 const ExtHitSize = ExtHitFlippyTypeOffset + 0x4
 
-echo ExtHitSize
 
 # New variable pointer offsets
 const
@@ -32,11 +31,20 @@ const
     ExtHit3Offset = ExtHit2Offset + ExtHitSize
     SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
-const ExtDataSize = (HitstunModifierOffset + 0x4)
+
+# TODO SDI & hitstun multipliers should be fighters only?
+
+# New variable pointer offsets for ITEMS only
+const
+    ExtItHitlagMultiplierOffset = HitstunModifierOffset + 0x4 # float
+
+const 
+    ExtFighterDataSize = (HitstunModifierOffset + 0x4)
+    ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4) 
 
 const
-    NewFighterDataSize = FighterDataOrigSize + ExtDataSize
-    NewItemDataSize = ItemDataOrigSize + ExtDataSize
+    NewFighterDataSize = FighterDataOrigSize + ExtFighterDataSize
+    NewItemDataSize = ItemDataOrigSize + ExtItemDataSize
 
 const
     CustomFunctionReadEvent = "0x801510e0"
@@ -62,7 +70,7 @@ defineCodes:
             cmpwi r4, 343
             %`beq-`(OriginalExit)
             # uses
-            # r0, r3, r4, r5, r6, r7, r8
+            # r3, r4, r5, r6, r7, r8
             # inputs
             # r3 = ft/itdata
             # r4 = ft/ithit
@@ -98,6 +106,7 @@ defineCodes:
 
         # Hitlag
         patchInsertAsm "8007db1c":
+            # fix for fighters only...
             # TODO double check... should check if fighter is in hitlag... still has 1 frame of hitlag if fighter isn't in hitlag??? maybe not
             # fixes a freeze glitch that occurs when a fighter is in hitlag but then gets hit with a move with 0 hitlag
             # f1 = calculated hitlag frames
@@ -109,12 +118,187 @@ defineCodes:
             Exit:
                 addi sp, sp, 64 # orig code line
 
+        # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
+        patchInsertAsm "801510dc":
+            cmpwi r4, 343
+            %`beq-`(OriginalExit)
+
+            # both items and fighters can experience hitlag
+            # only defender fighter experience SDI & Hitstun mods
+
+            # inputs
+            # r3 = source gobj
+            # r4 = defender gobj
+            # r5 = source hit ft/it hit struct ptr
+            %backup
+            # backup regs
+            # r31 = source data
+            # r30 = defender data
+            # r29 = r5 ft/it hit
+            # r28 = ExtHit offset
+            # r27 = r3 source gobj
+            # r26 = r4 defender gobj
+            # r25 = source type
+            # r24 = defender type
+            lwz r31, 0x2C(r3)
+            lwz r30, 0x2C(r4)
+            mr r29, r5
+            mr r27, r3
+            mr r26, r4
+
+            # calculate ExtHit offset for given ft/it hit ptr
+            mr r3, r27 # src gobj
+            bl IsItemOrFighter
+            mr r25, r3 # backup source type
+            cmpwi r3, 1
+            beq SetupFighterVars
+            cmpwi r3, 2
+            bne Epilog
+
+            SetupItemVars:
+                li r5, 1492
+                li r6, 316
+                li r7, {ExtItemDataOffset}
+            b CalculateExtHitOffset
+
+            SetupFighterVars:
+                li r5, 2324
+                li r6, 312
+                li r7, {ExtFighterDataOffset}
+
+            CalculateExtHitOffset:
+                mr r3, r31
+                mr r4, r29
+                %branchLink("0x801510d8")
+            # r3 now has offset
+            cmpwi r3, 0
+            beq Epilog
+
+            mr r28, r3 # ExtHit off
+
+            StoreHitlag:
+                lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier
+                # calculate hitlag multiplier offsets depending if it's a item or fighter
+                # for src
+                mr r3, r25
+                bl CalculateHitlagMultiOffset
+                add r4, r31, r3
+
+                # for def
+                mr r3, r26
+                bl IsItemOrFighter
+                mr r24, r3
+                bl CalculateHitlagMultiOffset
+                add r5, r30, r3
+               
+                Hitlag:
+
+                    # check if hit was electric
+                    lwz r0, 0x30(r29) # dmg hit attribute
+                    cmplwi r0, 2 # electric
+                    %`bne+`(NotElectric)
+                    # Electric
+                    lwz r3, -0x514C(r13) # PlCo values
+                    lfs f1, 0x1A4(r3) # 1.5 electric hitlag multiplier
+                    fmuls f1, f1, f0 # 1.5 * multiplier
+                    # store extra hitlag for DEFENDER ONLY in Melee
+                    # TODO idk if i should check if src & defender data is valid before setting...
+                    stfs f1, 0(r5) # store extra hitlag for defender
+                    b UpdateHitlagForAttacker
+
+                    NotElectric:
+                            stfs f0, 0(r5) # store hitlag multi for defender
+
+                            UpdateHitlagForAttacker:
+                                stfs f0, 0(r4) # store hitlag multi for source
+
+            Epilog:
+                %restore
+                blr
+
+            CalculateHitlagMultiOffset:
+                cmpwi r3, 1
+                beq Return1960
+                cmpwi r3, 2
+                bne Exit
+                li r3, {ExtItHitlagMultiplierOffset + ExtItemDataOffset} # TODO make this it's own func to calculate the correct offset
+                b Exit
+                Return1960:
+                    li r3, 0x1960
+                Exit:
+                    blr
+
+            IsItemOrFighter:
+                # input = gobj in r3
+                # returns 0 = ?, 1 = fighter, 2 = item, in r3
+                lhz r0, 0(r3)
+                cmpwi r0,0x4
+                li r3, 1
+                beq Result
+                li r3, 2
+                cmpwi r0,0x6
+                beq Result
+                li r3, 0
+                Result:
+                    blr
+
+            OriginalExit:
+                lwz r5, 0x010C(r31)
+#[ 
+        # Hitbox Entity Vs Melee - Set Variables
+        patchInsertAsm "802705ac":
+            # eg. when a player hits an item with melee
+            # r30 = itdata
+            # r26 = fthit
+            # r28 = attacker data ptr
+            # r24 = gobj of itdata (src)
+            # r29 = gobj of attacker
+#            %backup
+            %branchLink("0x801510dc")
+
+#            %restore
+
+            Exit:
+                lwz	r0, 0x0CA0(r30) # original code line ]#
+
         patchInsertAsm "8007aaf4":
             # set the hitlag multiplier for the attacker & defender based on hitbox id
             # r12 = source ftdata
             # r25 = defender ftdata
             # r31 = ptr ft hit
-            lwz r4, 0x8(r19)
+            # r30 = gobj of defender
+            # r4 = gobj of src
+            lwz r3, 0x8(r19)
+            mr r4, r30
+            lwz r5, 0xC(r19) # ptr fthit of source
+            %branchLink("0x801510dc") # TODO const...
+            %branch("0x8007ab0c")
+
+
+
+#[             lwz r4, 0x8(r19)
+            lhz r3, 0(r4)
+            cmpwi r3,0x4
+            beq Fighter
+            cmpwi r3,0x6
+            bne OriginalExit
+            # is item
+            lwz r3, 0x2C(r4)
+            mr r6, r4 # src gobj
+            b Call
+
+            Fighter:
+                mr r3, r12
+                lwz r6, 0(r12) # src gobj
+            Call:
+                mr r4, r25
+                lwz r5, 0xC(r19) # ptr fthit of source
+                %branchLink("0x801510dc") # TODO const...
+ ]#
+#            OriginalExit:
+#                lwz r0, 0x1C(r31)
+
+#[             lwz r4, 0x8(r19)
             lhz r3, 0(r4)
             cmpwi r3,0x4
             beq Fighter
@@ -122,6 +306,41 @@ defineCodes:
             bne OriginalExit
 
             # TODO rewrite for cleaner
+
+#[             # items also have hitlag...
+            # hitting items don't seem to call this patch func...
+            #8026a2f8 - 0xca8 of item data 
+
+            80270bc0 - EntityVsProjectile ca0 stores calculated hitlag frames?
+            802705b4 - EntityVsMelee ca0 stores calculated hitlag frames?
+
+            When a player hits a item Enttiy VS MELEE:
+                - item data: 0ca0 seems to be damage done by entity
+
+                80270598
+                r30 = itdata
+                loop through player hitboxes
+                r26 contains fthit ptr
+                loads damage_float of fthit (0xC) from r26 to f0
+                r28 = attacker data ptr
+                stores converted int damage in 0x1914 of r28
+                stores dmg into ca0 of (r30)
+                80270604 - converts back to float???
+                Now how does the player/source take hitlag?
+                # here i think we need to load the hitlag multiplier...
+
+                0x1914 of r28 is hit lag related to ft dmg hitlag
+                it stores damage at this point...
+
+
+                8026a5f8 - ItemThink_Shield/Damage
+                - after this, it calculated hitlag frames? from 0xCA8 - which is stored damage from source
+                - 0xCBC must be hitlag frames currently
+
+
+
+            
+            ]#
 
             Item:
                 #mr r3, r12
@@ -165,10 +384,7 @@ defineCodes:
                 StoreForAttacker: # TODO STAGE ITEMS CAUSE THIS PART TO CRASH
                     stfs f31, 0x1960(r12) # store hitlag for attacker
 
-            %branch("0x8007ab0c")
-
-            OriginalExit:
-                lwz r0, 0x1C(r31)
+            %branch("0x8007ab0c") ]#
 
         # Init Default Values for ExtHit - Projectiles
         patchInsertAsm "802790f0":
@@ -461,7 +677,7 @@ defineCodes:
         patchInsertAsm "80268754":
             addi r29, r3, 0 # backup r3
 
-            li r4, 4044
+            li r4, {NewItemDataSize} # was 4044
             %branchLink("0x8000c160")
 
             Exit:
