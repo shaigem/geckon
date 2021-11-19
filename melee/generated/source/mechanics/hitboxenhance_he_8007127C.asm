@@ -1,13 +1,11 @@
-mulli r30, r0, 20
-addi r30, r30, 9196
-add r30, r31, r30
-lfs f0, 0xFFFF8870(rtoc)
-stfs f0, 0(r30)
-stfs f0, 4(r30)
-lfs f0, 0xFFFF8874(rtoc)
-stfs f0, 8(r30)
-li r3, 0
-stw r3, 12(r30)
-stw r3, 16(r30)
+mulli r3, r0, 20
+addi r3, r3, 9196
+add r3, r31, r3
+mr r5, r4
+lis r12, 0x801510e4 @h
+ori r12, r12, 0x801510e4 @l
+mtctr r12
+bctrl
+mr r4, r5
 Exit:
 mulli r3, r0, 312

@@ -102,6 +102,9 @@ template `bne+`*(label: untyped): string =
     ppc:
         "bne+" label
 
+template `mr.`*(ra, rs: Register): string =
+    "mr. " & $ra & ", " & $rs 
+
 template `bge-`*(label: untyped): string =
     ppc:
         "bge-" label

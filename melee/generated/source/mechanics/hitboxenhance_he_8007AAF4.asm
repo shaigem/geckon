@@ -1,11 +1,31 @@
+lwz r4, 0x00000008(r19)
+lhz r3, 0(r4)
+cmpwi r3, 0x00000004
+beq Fighter
+cmpwi r3, 0x00000006
+bne OriginalExit
+Item:
+lwz r3, 0x0000002C(r4)
+lwz r4, 0x0000000C(r19)
+li r5, 1492
+li r6, 316
+li r7, 4044
+lis r8, 0x801510d8 @h
+ori r8, r8, 0x801510d8 @l
+mtctr r8
+bctrl
+b CheckValidExtHitStruct
+Fighter:
 mr r3, r12
-lwz r4, 0x0000000C(r17)
+lwz r4, 0x0000000C(r19)
 li r5, 2324
 li r6, 312
-lis r7, 0x801510d8 @h
-ori r7, r7, 0x801510d8 @l
-mtctr r7
+li r7, 9196
+lis r8, 0x801510d8 @h
+ori r8, r8, 0x801510d8 @l
+mtctr r8
 bctrl
+CheckValidExtHitStruct:
 cmpwi r3, 0
 beq OriginalExit
 lwz r0, 0x0000001C(r31)

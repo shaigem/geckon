@@ -1,19 +1,19 @@
 cmpwi r4, 343
 beq- OriginalExit
-add r7, r3, r5
+add r8, r3, r5
 li r5, 0
 b Comparison
 Loop:
 addi r5, r5, 1
 cmpwi r5, 3
 bgt- NotFound
-add r7, r7, r6
+add r8, r8, r6
 Comparison:
-cmplw r7, r4
+cmplw r8, r4
 bne+ Loop
 Found:
 mulli r5, r5, 20
-addi r5, r5, 9196
+add r5, r5, r7
 add r5, r3, r5
 mr r3, r5
 blr
