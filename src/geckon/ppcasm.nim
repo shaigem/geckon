@@ -86,6 +86,10 @@ template `bgt-`*(label: untyped): string =
     ppc:
         "bgt-" label
 
+template `bgt+`*(label: untyped): string =
+    ppc:
+        "bgt-" label
+
 template `blt-`*(label: untyped): string =
     ppc:
         "blt-" label
@@ -116,6 +120,9 @@ template `bge+`*(label: untyped): string =
 template `ble-`*(label: untyped): string =
     ppc:
         "ble-" label
+
+proc `fmuls.`*(dstF, fa, fs: Register): string =
+    "fmuls. " & $dstF & ", " & $fa & ", " & $fs
 
 proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
     "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $mb & ", " & $me

@@ -1,7 +1,6 @@
 import geckon
 
 # TODO add m-ex support
-# TODO item support
 
 const
     FighterDataOrigSize = 0x23EC
@@ -22,21 +21,21 @@ const
 # Size of new hitbox data = last var offset + last var offset.size
 const ExtHitSize = ExtHitFlippyTypeOffset + 0x4
 
-
-# New variable pointer offsets
+# New variable pointer offsets for both ITEMS & FIGHTERS
 const
     ExtHit0Offset = 0x0
     ExtHit1Offset = ExtHit0Offset + ExtHitSize
     ExtHit2Offset = ExtHit1Offset + ExtHitSize
     ExtHit3Offset = ExtHit2Offset + ExtHitSize
+
+# New variable pointer offsets for FIGHTERS only
+const
     SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
 
-# TODO SDI & hitstun multipliers should be fighters only?
-
 # New variable pointer offsets for ITEMS only
 const
-    ExtItHitlagMultiplierOffset = HitstunModifierOffset + 0x4 # float
+    ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
 
 const 
     ExtFighterDataSize = (HitstunModifierOffset + 0x4)
@@ -50,15 +49,8 @@ const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
 
-proc calcOffsetExtHit(hitboxIdReg, fighterDataReg: Register; outputReg: Register = hitboxIdReg; extDataOffset: int64 = ExtFighterDataOffset): string =
-    # hitbox id * ExtHit struct size = offset ptr
-    # offset ptr * first of ExtHit[4] ptr offset = offset ptr relative to fighter data
-    # fighter data ptr start + offset ptr relative to fighter data = ptr offset of ExtHit
-    if outputReg == fighterDataReg:
-        raise newException(ValueError, "output register should not be the same as the fighter data reg!")
-    &"""mulli {outputReg}, {hitboxIdReg}, {ExtHitSize}
-addi {outputReg}, {outputReg}, {extDataOffset}
-add {outputReg}, {fighterDataReg}, {outputReg}"""
+proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
+proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
 
 defineCodes:
     createCode "Hitbox Extension":
@@ -118,6 +110,26 @@ defineCodes:
             Exit:
                 addi sp, sp, 64 # orig code line
 
+        # SDI multiplier mechanics patch
+        patchInsertAsm "8008e558":
+            # SDI distance is increased or decreased based on multiplier
+            # r3 = fighter data
+            # f4 = 6.0 multiplier
+            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r3)
+            fmuls f4, f4, f0 # 6.0 * our custom sdi multiplier
+            li r0, 254 # original code line
+
+        # Hitstun mechanics patch
+        patchInsertAsm "8008dd70":
+            # Adds or removes frames of hitstun
+            # 8008dd68: loads global hitstun multiplier of 0.4 from plco
+            # f30 = calculated hitstun after multipling by 0.4
+            # r29 = fighter data
+            # f0 = free
+            lfs f0, {calcOffsetFighterExtData(HitstunModifierOffset)}(r29) # load modifier
+            fadds f30, f30, f0 # hitstun + modifier
+            fctiwz f0, f30 # original code line
+
         # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
         patchInsertAsm "801510dc":
             cmpwi r4, 343
@@ -135,11 +147,9 @@ defineCodes:
             # r31 = source data
             # r30 = defender data
             # r29 = r5 ft/it hit
-            # r28 = ExtHit offset
             # r27 = r3 source gobj
             # r26 = r4 defender gobj
-            # r25 = source type
-            # r24 = defender type
+
             lwz r31, 0x2C(r3)
             lwz r30, 0x2C(r4)
             mr r29, r5
@@ -176,6 +186,10 @@ defineCodes:
 
             mr r28, r3 # ExtHit off
 
+            # r25 = source type
+            # r24 = defender type
+            # r28 = ExtHit offset
+
             StoreHitlag:
                 lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier
                 # calculate hitlag multiplier offsets depending if it's a item or fighter
@@ -187,12 +201,11 @@ defineCodes:
                 # for def
                 mr r3, r26
                 bl IsItemOrFighter
-                mr r24, r3
+                mr r24, r3 # backup def type
                 bl CalculateHitlagMultiOffset
                 add r5, r30, r3
                
                 Hitlag:
-
                     # check if hit was electric
                     lwz r0, 0x30(r29) # dmg hit attribute
                     cmplwi r0, 2 # electric
@@ -211,6 +224,18 @@ defineCodes:
 
                             UpdateHitlagForAttacker:
                                 stfs f0, 0(r4) # store hitlag multi for source
+                                
+            # now we store other variables for defenders who are fighters ONLY
+            cmpwi r24, 1 # fighter
+            bne Epilog # not fighter, skip this section
+
+            StoreHitstunModifier:
+                lfs f0, {ExtHitHitstunModifierOffset}(r28)
+                stfs f0, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
+                
+            StoreSDIMultiplier:
+                lfs f0, {ExtHitSDIMultiplierOffset}(r28)
+                stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r30)
 
             Epilog:
                 %restore
@@ -221,7 +246,7 @@ defineCodes:
                 beq Return1960
                 cmpwi r3, 2
                 bne Exit
-                li r3, {ExtItHitlagMultiplierOffset + ExtItemDataOffset} # TODO make this it's own func to calculate the correct offset
+                li r3, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
                 b Exit
                 Return1960:
                     li r3, 0x1960
@@ -244,25 +269,38 @@ defineCodes:
 
             OriginalExit:
                 lwz r5, 0x010C(r31)
-#[ 
+
         # Hitbox Entity Vs Melee - Set Variables
         patchInsertAsm "802705ac":
             # eg. when a player hits an item with melee
             # r30 = itdata
             # r26 = fthit
             # r28 = attacker data ptr
-            # r24 = gobj of itdata (src)
+            # r24 = gobj of itdata
             # r29 = gobj of attacker
-#            %backup
+            mr r3, r29 # src
+            mr r4, r24 # def
+            mr r5, r26 # ithit
             %branchLink("0x801510dc")
-
-#            %restore
-
             Exit:
-                lwz	r0, 0x0CA0(r30) # original code line ]#
+                lwz r0, 0xCA0(r30) # original code line
 
+        # Hitbox Entity Vs Projectiles - Set Variables
+        patchInsertAsm "80270bb8":
+            # eg. when a player hits an item (eg. goomba) with projectile
+            # r31 = itdata
+            # r19 = hit struct
+            # r26 = gobj of defender
+            # r30 = gobj of attacker
+            mr r3, r30 # atk
+            mr r4, r26 # def
+            mr r5, r19 # ithit
+            %branchLink("0x801510dc")
+            Exit:
+                lwz r0, 0xCA0(r31) # original code line
+
+        # CalculateKnockback
         patchInsertAsm "8007aaf4":
-            # set the hitlag multiplier for the attacker & defender based on hitbox id
             # r12 = source ftdata
             # r25 = defender ftdata
             # r31 = ptr ft hit
@@ -274,117 +312,34 @@ defineCodes:
             %branchLink("0x801510dc") # TODO const...
             %branch("0x8007ab0c")
 
+        # Hitlag Function For Other Entities
+        patchInsertAsm "8026b454":
+            # patch hitlag function used by other entities
+            # r31 = itdata
+            # f0 = floored hitlag frames
+            lfs f1, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}(r31)
+            fmuls f0, f0, f1 # calculated hitlag frames * multiplier
 
+            # check if calculated hitlag is 0, then set it to a minimum of 1
+            lfs f1, -0x7790(rtoc) # 1.0
+            fcmpo cr0, f0, f1
+            %`bge+`(Exit)
+            fmr f0, f1 # set f0 to 1.0
 
-#[             lwz r4, 0x8(r19)
-            lhz r3, 0(r4)
-            cmpwi r3,0x4
-            beq Fighter
-            cmpwi r3,0x6
-            bne OriginalExit
-            # is item
-            lwz r3, 0x2C(r4)
-            mr r6, r4 # src gobj
-            b Call
+            Exit:
+                fctiwz f0, f0
 
-            Fighter:
-                mr r3, r12
-                lwz r6, 0(r12) # src gobj
-            Call:
-                mr r4, r25
-                lwz r5, 0xC(r19) # ptr fthit of source
-                %branchLink("0x801510dc") # TODO const...
- ]#
-#            OriginalExit:
-#                lwz r0, 0x1C(r31)
+        # Reset Custom Variables for Items
+        patchInsertAsm "80269cdc":
+            # r5 = itdata
 
-#[             lwz r4, 0x8(r19)
-            lhz r3, 0(r4)
-            cmpwi r3,0x4
-            beq Fighter
-            cmpwi r3,0x6
-            bne OriginalExit
+            # reset custom vars to 1.0
+            lfs f0, -0x7790(rtoc) # 1.0            
+            stfs f0, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}(r5)
 
-            # TODO rewrite for cleaner
+            # reset custom vars to 0.0
+            lfs f0, -0x33A8(rtoc) # 0.0, original code line
 
-#[             # items also have hitlag...
-            # hitting items don't seem to call this patch func...
-            #8026a2f8 - 0xca8 of item data 
-
-            80270bc0 - EntityVsProjectile ca0 stores calculated hitlag frames?
-            802705b4 - EntityVsMelee ca0 stores calculated hitlag frames?
-
-            When a player hits a item Enttiy VS MELEE:
-                - item data: 0ca0 seems to be damage done by entity
-
-                80270598
-                r30 = itdata
-                loop through player hitboxes
-                r26 contains fthit ptr
-                loads damage_float of fthit (0xC) from r26 to f0
-                r28 = attacker data ptr
-                stores converted int damage in 0x1914 of r28
-                stores dmg into ca0 of (r30)
-                80270604 - converts back to float???
-                Now how does the player/source take hitlag?
-                # here i think we need to load the hitlag multiplier...
-
-                0x1914 of r28 is hit lag related to ft dmg hitlag
-                it stores damage at this point...
-
-
-                8026a5f8 - ItemThink_Shield/Damage
-                - after this, it calculated hitlag frames? from 0xCA8 - which is stored damage from source
-                - 0xCBC must be hitlag frames currently
-
-
-
-            
-            ]#
-
-            Item:
-                #mr r3, r12
-                lwz r3, 0x2C(r4)
-                lwz r4, 0xC(r19) # ptr fthit of source
-                li r5, 1492
-                li r6, 316
-                li r7, {ExtItemDataOffset}
-                %branchLink("0x801510d8", r8)
-            
-            b CheckValidExtHitStruct
-
-            Fighter:
-                mr r3, r12
-                lwz r4, 0xC(r19) # ptr fthit of source
-                li r5, 2324
-                li r6, 312
-                li r7, {ExtFighterDataOffset}
-                %branchLink("0x801510d8", r8)
-            
-            CheckValidExtHitStruct:
-                cmpwi r3, 0
-                beq OriginalExit
-
-            # r3 now contains ptr to ExtHit struct start
-
-            lwz r0, 0x1C(r31) # dmg hit attribute
-            cmplwi r0, 2 # hit electric attribute
-            lfs f31, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier into f31
-            %`bne-`(NotElectric)
-
-            # attribute was electric
-            lwz r4, -0x514C(r13)
-            lfs f0, 0x1A4(r4) # 1.5 electric hitlag multiplier
-            fmuls f0, f31, f0 # 1.5 * extra hitlag
-            stfs f0, 0x1960(r25) # store extra hitlag for defender
-            b StoreForAttacker
-
-            NotElectric:
-                stfs f31, 0x1960(r25) # store hitlag for defender
-                StoreForAttacker: # TODO STAGE ITEMS CAUSE THIS PART TO CRASH
-                    stfs f31, 0x1960(r12) # store hitlag for attacker
-
-            %branch("0x8007ab0c") ]#
 
         # Init Default Values for ExtHit - Projectiles
         patchInsertAsm "802790f0":
@@ -420,146 +375,29 @@ defineCodes:
             
             Exit:
                 mulli r3, r0, 312 # orig code line
-#[            
-            # Init Default Values for ExtHit - Projectiles
-        patchInsertAsm "802790f0":
-            # r4 = hitbox id
-            # r27 = item data
 
-            # call the custom function
-            mr r3, r4 # hitbox id
-            mr r4, r27 # item data
-            li r5, {ExtItemDataOffset}
-            %branchLink(CustomFunctionInitDefaultEventVars)
-
-            # restore r4
-            mr r4, r3
-            # r5 was restored already
-
-            Exit:
-                mulli r3, r4, 316 # orig code line
-
-        # Init Default Values for ExtHit - Melee
-        patchInsertAsm "8007127c":
-            # r0 = hitbox ID
-            # r31 = fighter data
-            mr r3, r0
-            mr r4, r31
-            li r5, {ExtFighterDataOffset}
-            %branchLink(CustomFunctionInitDefaultEventVars)
-
-            # restore r0 & r31
-            mr r0, r3
-            mr r31, r4
-            # r5 was restored already
-            
-            Exit:
-                mulli r3, r0, 312 # orig code line
-
-            # Init Default Values for ExtHit - Projectiles
-        patchInsertAsm "802790f0":
-            # r4 = hitbox id
-            # r27 = item data
-
-            # backup r4 ONLY to r28
-            mr r28, r4
-
-            # call the custom function
-            mr r3, r4 # hitbox id
-            mr r4, r27 # item data
-            %branchLink(CustomFunctionInitDefaultEventVars)
-
-            # restore r4
-            mr r4, r28
-            
-            Exit:
-                mulli r3, r4, 316 # orig code line
-
-        # Init Default Values for ExtHit - Melee
-        patchInsertAsm "8007127c":
-            # r0 = hitbox ID
-            # r31 = fighter data
-
-            # backup r0 & r4
-            mr r30, r0
-            mr r5, r4
-
-            # call the custom function
-            mr r3, r0 # hitbox id
-            mr r4, r31 # item data
-            %branchLink(CustomFunctionInitDefaultEventVars)
-
-            # restore r0 & r4
-            mr r0, r30
-            mr r4, r5
-            Exit:
-                mulli r3, r0, 312 # orig code line
-     # TODO add to projectiles func & samus create hitbox?
-            # must init default values of ExtHit for every hitbox even if it doesn't use the custom subaction event
-            # r31 = fighter data
-            # r0 = hitbox ID
-            # r30 = free
-            %calcOffsetExtHit(r0, r31, outputReg = r30)
+        # Reset Custom ExtFighterData vars that are involved at the end of Hitlag for Fighters
+        patchInsertAsm "8006d1d8":
             # reset vars that need to be 1
+            # r31 = fighter data
             lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {ExtHitHitlagOffset}(r30)
-            stfs f0, {ExtHitSDIMultiplierOffset}(r30)
-
-            # reset vars that need to be 0
-            lfs f0, -0x778C(rtoc) # 0.0
-            stfs f0, {ExtHitHitstunModifierOffset}(r30)
-            li r3, 0
-            stw r3, {ExtHitFlags1Offset}(r30)
-            stw r3, {ExtHitFlippyTypeOffset}(r30)
-
+            stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
             Exit:
-                mulli r3, r0, 312 # orig code line 
-                
-                        # Custom Non-Standalone Function For Initing Default Values in ExtHit
-        patchInsertAsm "801510e4":
-            cmpwi r4, 343
-            %`beq-`(OriginalExit)
+                lwz r0, 0x24(sp)
 
-            # inputs
-            # r3 = hitbox ID
-            # r4 = fighter data
-            # r5 = exthit offset to use
-            %backup
-            # backed up regs
-            mr r31, r4
-            mr r30, r3
-            mr r29, r5
-
-            #%calcOffsetExtHit(r30, r31, outputReg = r3)
-            mulli r3, r30, {ExtHitSize}
-            add r3, r3, r5
-            add r3, r31, r3
-
-            # reset vars that need to be 1
-            lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {ExtHitHitlagOffset}(r3)
-            stfs f0, {ExtHitSDIMultiplierOffset}(r3)
-
-            # reset vars that need to be 0
-            lfs f0, -0x778C(rtoc) # 0.0
-            stfs f0, {ExtHitHitstunModifierOffset}(r3)
-            li r4, 0
-            stw r4, {ExtHitFlags1Offset}(r3)
-            stw r4, {ExtHitFlippyTypeOffset}(r3)
-
-            # restore messed up registers
-            mr r4, r31
-            mr r3, r30
-            mr r5, r29
-
-            %restore
-            blr
-            OriginalExit:
-                lfs f2, -0x5B3C(rtoc) # orig code line
-                ]#
+        # Reset Custom ExtFighterData vars that are involved with PlayerThink_Shield/Damage
+        patchInsertAsm "8006d8fc":
+            # reset custom ExtData vars for fighter
+            # f1 = 0.0
+            # r3 = 0
+            # r30 = fighter data
+            # reset vars to 0
+            stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
+            stfs f1, 0x1838(r30) # original code line
 
         # Custom Non-Standalone Function For Initing Default Values in ExtHit
         patchInsertAsm "801510e4":
+            # TODO samus create hitbox?
             cmpwi r4, 343
             %`beq-`(OriginalExit)
 

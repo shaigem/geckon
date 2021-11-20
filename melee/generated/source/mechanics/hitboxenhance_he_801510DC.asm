@@ -58,6 +58,14 @@ NotElectric:
 stfs f0, 0(r5)
 UpdateHitlagForAttacker:
 stfs f0, 0(r4)
+cmpwi r24, 1
+bne Epilog
+StoreHitstunModifier:
+lfs f0, 8(r28)
+stfs f0, 9280(r30)
+StoreSDIMultiplier:
+lfs f0, 4(r28)
+stfs f0, 9276(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
@@ -69,7 +77,7 @@ cmpwi r3, 1
 beq Return1960
 cmpwi r3, 2
 bne Exit
-li r3, 4132
+li r3, 4124
 b Exit
 Return1960:
 li r3, 0x00001960
