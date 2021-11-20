@@ -49,6 +49,11 @@ const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
 
+const 
+    FlippyTypeNone = 0
+    FlippyTypeOpposite = 1
+    FlippyTypeForward = 2
+
 proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
 proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
 
@@ -96,7 +101,7 @@ defineCodes:
             OriginalExit:
                 lfs f1, -0x5B40(rtoc)
 
-        # Hitlag
+        # Hitlag multiplier mechanics patch for fighters
         patchInsertAsm "8007db1c":
             # fix for fighters only...
             # TODO double check... should check if fighter is in hitlag... still has 1 frame of hitlag if fighter isn't in hitlag??? maybe not
@@ -236,6 +241,18 @@ defineCodes:
             StoreSDIMultiplier:
                 lfs f0, {ExtHitSDIMultiplierOffset}(r28)
                 stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r30)
+            
+            CalculateFlippyDirection:
+                lwz r0, {ExtHitFlippyTypeOffset}(r28)
+                cmpwi r0, {FlippyTypeNone}
+                beq Epilog
+                lfs f0, 0x2C(r31) # facing direction of attacker
+                cmpwi r0, {FlippyTypeForward}
+                bne StoreCalculatedDirection
+                FlippyForward:
+                    fneg f0, f0
+                StoreCalculatedDirection:
+                    stfs f0, 0x1844(r30)
 
             Epilog:
                 %restore
@@ -299,7 +316,7 @@ defineCodes:
             Exit:
                 lwz r0, 0xCA0(r31) # original code line
 
-        # CalculateKnockback
+        # CalculateKnockback patch for setting hit variables that affect the defender and attacker
         patchInsertAsm "8007aaf4":
             # r12 = source ftdata
             # r25 = defender ftdata
@@ -459,10 +476,10 @@ defineCodes:
                 stb r0, {ExtHitFlags1Offset}(r4)
 
             CheckFlippy:
-                %`rlwinm.`(r6, r6, 0, 25, 25) # opposite facing direction flippy
+                %`rlwinm.`(r5, r6, 0, 25, 25) # opposite facing direction flippy
                 # r0 = 1
                 bne StoreFlippyType
-                %`rlwinm.`(r6, r6, 0, 26, 26) # towards facing direction flippy
+                %`rlwinm.`(r5, r6, 0, 26, 26) # towards facing direction flippy
                 li r0, 2
                 bne StoreFlippyType
                 li r0, 0

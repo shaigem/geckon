@@ -22,9 +22,9 @@ lbz r5, 12(r4)
 rlwimi r5, r0, 0, 1
 stb r0, 12(r4)
 CheckFlippy:
-rlwinm. r6, r6, 0, 25, 25
+rlwinm. r5, r6, 0, 25, 25
 bne StoreFlippyType
-rlwinm. r6, r6, 0, 26, 26
+rlwinm. r5, r6, 0, 26, 26
 li r0, 2
 bne StoreFlippyType
 li r0, 0

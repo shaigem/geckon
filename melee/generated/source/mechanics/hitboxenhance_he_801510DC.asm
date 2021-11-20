@@ -66,6 +66,17 @@ stfs f0, 9280(r30)
 StoreSDIMultiplier:
 lfs f0, 4(r28)
 stfs f0, 9276(r30)
+CalculateFlippyDirection:
+lwz r0, 16(r28)
+cmpwi r0, 0
+beq Epilog
+lfs f0, 0x0000002C(r31)
+cmpwi r0, 2
+bne StoreCalculatedDirection
+FlippyForward:
+fneg f0, f0
+StoreCalculatedDirection:
+stfs f0, 0x00001844(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
