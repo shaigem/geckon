@@ -2,6 +2,8 @@ import geckon
 
 # TODO add m-ex support
 
+# TODO properties to add: Set weight
+
 const
     FighterDataOrigSize = 0x23EC
     ItemDataOrigSize = 0xFCC
@@ -12,7 +14,8 @@ const
 const
     ExtHitHitlagOffset = 0x0 # float
     ExtHitSDIMultiplierOffset = ExtHitHitlagOffset + 0x4 # float
-    ExtHitHitstunModifierOffset = ExtHitSDIMultiplierOffset + 0x4 # float
+    ExtHitShieldstunMultiplierOffset = ExtHitSDIMultiplierOffset + 0x4 # float
+    ExtHitHitstunModifierOffset = ExtHitShieldstunMultiplierOffset + 0x4 # float
 
     ExtHitFlags1Offset = ExtHitHitstunModifierOffset + 0x4 # char
     ExtHitFlags1IsWindBoxMask = 0x1
@@ -32,13 +35,14 @@ const
 const
     SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
+    ShieldstunMultiplierOffset = HitstunModifierOffset + 0x4 # float
 
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
 
 const 
-    ExtFighterDataSize = (HitstunModifierOffset + 0x4)
+    ExtFighterDataSize = (ShieldstunMultiplierOffset + 0x4)
     ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4) 
 
 const
@@ -126,6 +130,93 @@ defineCodes:
             Exit:
                 addi sp, sp, 64 # orig code line
 
+#[         # Custom Function for Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        patchInsertAsm "801510d4":
+
+            cmpwi r4, 343
+            %`beq-`(OriginalExit)
+
+            mflr r0
+
+            # r3 = attacker data
+            # r4 = defender data
+            # r5 = hit struct
+
+            # returns f1 = weight
+            mr r4, r5
+            li r5, 2324
+            li r6, 312
+            li r7, {ExtFighterDataOffset}
+            %branchLink("0x801510d8")
+
+            mtlr r0
+
+            cmpwi r3, 0
+            beq Epilog
+
+            # r3 contains ExtHit offset
+            lbz r4, {ExtHitFlags1Offset}(r3)
+            %`rlwinm.`(r4, r4, 0, 24, 24)
+            beq UseDefaultWeight
+
+            SetWeight:
+                lwz r3, -0x514C(r13)
+                lfs f1, 0x10C(r3) # uses same weight value from throws (100)
+                b Epilog
+
+            UseDefaultWeight:
+                li r3, 0
+
+            Epilog:
+                blr
+
+            OriginalExit:
+                lwz r31, 0x002C(r3)
+
+        # Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        patchInsertAsm "8007a14c":
+            # r25 = defender data
+            # r17 = hit struct?
+            # r15 = attacker data
+            %backup
+
+            mr r25, r27
+
+            mr r31, r3
+            mr r30, r4
+            mr r29, r5
+            mr r28, r6
+            mr r27, r7
+            mr r26, r8
+            stfd f1, {BackupFreeSpaceOffset}(sp) 
+
+            mr r3, r15
+            mr r4, r25
+            mr r5, r17
+            %branchLink("0x801510d4")
+            cmpwi r3, 0
+            beq UseDefaultWeight
+
+            fmr f4, f1 # original code line uses f4 as the weight val
+            b Exit
+
+            UseDefaultWeight:
+                lfs f4, 0x88(r27) # loads defender's weight
+
+            Exit:
+                lfd f1, {BackupFreeSpaceOffset}(sp)
+                %restore
+
+
+
+        # Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        # Called when defender is attacked by an item
+        patchInsertAsm "8007a270":
+            # r25 = def data
+            lwz r4, 0xC(r19) # get it/ft of last hit
+            %branchLink("0x801510d4", r3)
+            lfs f22, 0x88(r27) # original code line
+ ]#
         # SDI multiplier mechanics patch
         patchInsertAsm "8008e558":
             # SDI distance is increased or decreased based on multiplier
@@ -145,6 +236,17 @@ defineCodes:
             lfs f0, {calcOffsetFighterExtData(HitstunModifierOffset)}(r29) # load modifier
             fadds f30, f30, f0 # hitstun + modifier
             fctiwz f0, f30 # original code line
+
+        # Shieldstun multiplier mechanics patch
+        patchInsertAsm "8009304c":
+            # TODO yoshi's shield
+            # Shieldstun for defender is increased or decreased based on multiplier
+            # f4 = 1.5
+            # f0 is free here
+            # r31 = fighter data
+            lfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31) # load modifier
+            fmuls f4, f4, f0 # 1.5 * our multiplier
+            fsubs f2, f2, f3 # orig code line
 
         # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
         patchInsertAsm "801510dc":
@@ -243,7 +345,7 @@ defineCodes:
                                 
             # now we store other variables for defenders who are fighters ONLY
             cmpwi r24, 1 # fighter
-            bne Epilog # not fighter, skip this section
+            bne Epilog # not fighter, skip this section      
 
             StoreHitstunModifier:
                 lfs f0, {ExtHitHitstunModifierOffset}(r28)
@@ -298,6 +400,57 @@ defineCodes:
 
             OriginalExit:
                 lwz r5, 0x010C(r31)
+
+        # Hitbox_MeleeLogicOnShield - Set Hit Vars
+        patchInsertAsm "80076dec":
+            # r31 = defender data
+            # r30 = hit struct
+            # r29 = src data
+            # free regs to use: r0, f1, f0
+            mr r0, r3 # backup r3
+
+            mr r3, r29 # src data
+            mr r4, r30 # hit struct
+            li r5, 2324
+            li r6, 312
+            li r7, {ExtFighterDataOffset}
+            %branchLink("0x801510d8")
+            cmpwi r3, 0
+            beq Exit
+
+            # r3 = exthit
+            lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
+            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31)
+
+            Exit:
+                # restore r3
+                mr r3, r0
+                lwz r0, 0x30(r30) # original code line
+
+        # Hitbox_ProjectileLogicOnShield - Set Hit Vars
+        patchInsertAsm "80077918":
+            # r29 = defender data
+            # r28 = hit struct
+            # r27 = src data
+            # free regs to use f1, f0
+            mr r3, r27 # src data
+            mr r4, r28 # hit struct
+            li r5, 1492
+            li r6, 316
+            li r7, {ExtItemDataOffset}
+            %branchLink("0x801510d8")
+            cmpwi r3, 0
+            beq Exit
+
+            # r3 = exthit
+            lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
+            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r29)
+
+            Exit:
+                # restore r6
+                mr r6, r30
+                stw r0, 0x19B0(r29) # original code line
+
 
         # Hitbox Entity Vs Melee - Set Variables
         patchInsertAsm "802705ac":
@@ -424,6 +577,9 @@ defineCodes:
             # reset vars to 0
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
             stfs f1, 0x1838(r30) # original code line
+            # reset vars to 1.0
+            lfs f0, -0x7790(rtoc) # 1.0
+            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r30)
 
         # Custom Non-Standalone Function For Initing Default Values in ExtHit
         patchInsertAsm "801510e4":
@@ -435,6 +591,7 @@ defineCodes:
             lfs f0, -0x7790(rtoc) # 1
             stfs f0, {ExtHitHitlagOffset}(r3)
             stfs f0, {ExtHitSDIMultiplierOffset}(r3)
+            stfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
 
             # reset vars that need to be 0
             lfs f0, -0x778C(rtoc) # 0.0
@@ -462,19 +619,22 @@ defineCodes:
 
             # r4 = the ptr to which ExtHit we are dealing with
             lwz r6, -0x514C(r13) # static vars??
-            lfs f1, 0xF4(r6) # load 0.01 into f0
+            lfs f1, 0xF4(r6) # load 0.01 into f1
 
             # read hitlag & sdi multipliers
             psq_l f0, 0x4(r3), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
             ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
             psq_st f0, {ExtHitHitlagOffset}(r4), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
-            # read hitstun modifier
-            psq_l f0, 0x8(r3), 1, 5 # load as float into ps0
-            stfs f0, {ExtHitHitstunModifierOffset}(r4) # store into ftdata
+            # read shieldstun multiplier & hitstun modifier
+#            lfd f1, 0xF4(r6) # load 0.01 into f1(ps0)
+            psq_l f1, 0xF4(r6), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
+            psq_l f0, 0x8(r3), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1)
+            ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
+            psq_st f0, {ExtHitShieldstunMultiplierOffset}(r4), 0, 7 # store results next to each other
 
             # read isWindbox & Flippy bits
-            lbz r6, 0xA(r3)
+            lbz r6, 0xC(r3)
             %`rlwinm.`(r0, r6, 0, 24, 24)
             li r0, 1
             bne IsWindBox
@@ -508,7 +668,7 @@ defineCodes:
                     stw r0, {ExtHitFlippyTypeOffset}(r4)
 
             # advance script
-            addi r3, r3, 12 # TODO create a function to calculate this
+            addi r3, r3, 16 # TODO create a function to calculate this
             stw r3, 0x8(r29) # store current pointing ptr
             blr
 

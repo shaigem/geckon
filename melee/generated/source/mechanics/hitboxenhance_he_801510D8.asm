@@ -12,7 +12,7 @@ Comparison:
 cmplw r8, r4
 bne+ Loop
 Found:
-mulli r5, r5, 20
+mulli r5, r5, 24
 add r5, r5, r7
 add r5, r3, r5
 mr r3, r5
