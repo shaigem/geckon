@@ -2,8 +2,6 @@ import geckon
 
 # TODO add m-ex support
 
-# TODO properties to add: Set weight
-
 const
     FighterDataOrigSize = 0x23EC
     ItemDataOrigSize = 0xFCC
@@ -130,93 +128,128 @@ defineCodes:
             Exit:
                 addi sp, sp, 64 # orig code line
 
-#[         # Custom Function for Set Weight to 100 for Knockback Calculation (ExtHit Flag)
         patchInsertAsm "801510d4":
 
             cmpwi r4, 343
             %`beq-`(OriginalExit)
+            
+            # inputs
+            # r3 = attacker gobj
+            # r4 = defender gobj
+            # r5 = attacker hit ft/it hit struct ptr
+            # returns
+            # r3 = ptr to ExtHit of attacker
+            cmplwi r3, 0
+            beq Invalid
+            cmplwi r4, 0
+            beq Invalid
+            cmplwi r5, 0
+            beq Invalid
 
-            mflr r0
+            %backup
+            mr r31, r3 # attacker gobj
+            mr r30, r4 # defender gobj
+            mr r29, r5 # attacker hit struct ptr
+            lwz r28, 0x2C(r3) # attacker data
+            lwz r27, 0x2C(r4) # defender data
 
-            # r3 = attacker data
-            # r4 = defender data
-            # r5 = hit struct
+            # check attacker type
+            lhz r3, 0(r3)
+            cmplwi r3, 4 # fighter type
+            beq GetExtHitForFighter
+            cmplwi r3, 6 # item type
+            beq GetExtHitForItem
+            b Invalid
 
-            # returns f1 = weight
-            mr r4, r5
-            li r5, 2324
-            li r6, 312
-            li r7, {ExtFighterDataOffset}
-            %branchLink("0x801510d8")
+            GetExtHitForItem:
+                li r3, 1492
+                li r4, 316
+                li r5, {ExtItemDataOffset}
+            b GetExtHit
 
-            mtlr r0
+            GetExtHitForFighter:
+                li r3, 2324
+                li r4, 312
+                li r5, {ExtFighterDataOffset}
 
-            cmpwi r3, 0
-            beq Epilog
+            GetExtHit:
+                li r26, 4 # loop 4 times
+                mtctr r26
+                add r26, r28, r3 # attacker data ptr + hit struct offset
+                add r3, r28, r5 # attacker data ptr + Exthit struct offset
+                b Comparison
+                Loop:
+                    add r26, r26, r4 # point to next hit struct
+                    addi r3, r3, {ExtHitSize} # point to next ExtHit struct
+                    Comparison:
+                        cmplw r26, r29 # hit struct ptr != given hit struct ptr
+                        bdnzf eq, Loop
 
-            # r3 contains ExtHit offset
-            lbz r4, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r4, r4, 0, 24, 24)
-            beq UseDefaultWeight
-
-            SetWeight:
-                lwz r3, -0x514C(r13)
-                lfs f1, 0x10C(r3) # uses same weight value from throws (100)
-                b Epilog
-
-            UseDefaultWeight:
+#            cmplw r26, r29 # final check for hit struct ptrs
+            beq Exit
+        
+            Invalid:
                 li r3, 0
 
-            Epilog:
+            Exit:
+                %restore
                 blr
 
             OriginalExit:
                 lwz r31, 0x002C(r3)
 
-        # Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        # Use Weight of 100 for Knockback Calculation (ExtHit Flag)
         patchInsertAsm "8007a14c":
             # r25 = defender data
             # r17 = hit struct?
             # r15 = attacker data
-            %backup
-
-            mr r25, r27
-
-            mr r31, r3
-            mr r30, r4
-            mr r29, r5
-            mr r28, r6
-            mr r27, r7
-            mr r26, r8
-            stfd f1, {BackupFreeSpaceOffset}(sp) 
-
-            mr r3, r15
-            mr r4, r25
-            mr r5, r17
+            lwz r3, 0(r15)
+            lwz r4, 0(r25)
+            mr r5, r17 # hit struct
             %branchLink("0x801510d4")
-            cmpwi r3, 0
-            beq UseDefaultWeight
+            cmplwi r3, 0
+            lfs f4, 0x88(r27) # weight of defender
+            beq Exit
+            # r3 contains ExtHit offset
 
-            fmr f4, f1 # original code line uses f4 as the weight val
-            b Exit
+            lbz r4, {ExtHitFlags1Offset}(r3)
+            %`rlwinm.`(r4, r4, 0, 31, 31) # check 0x1
+            beq Exit
 
-            UseDefaultWeight:
-                lfs f4, 0x88(r27) # loads defender's weight
+            UseSetWeight:
+                # if the 'Set Weight' flag is set, use a weight of 100 for the defender
+                lwz r3, -0x514C(r13)
+                lfs f4, 0x10C(r3) # uses same weight value from throws (100)
 
             Exit:
-                lfd f1, {BackupFreeSpaceOffset}(sp)
-                %restore
-
-
+                %emptyBlock
 
         # Set Weight to 100 for Knockback Calculation (ExtHit Flag)
         # Called when defender is attacked by an item
         patchInsertAsm "8007a270":
-            # r25 = def data
-            lwz r4, 0xC(r19) # get it/ft of last hit
-            %branchLink("0x801510d4", r3)
-            lfs f22, 0x88(r27) # original code line
- ]#
+            # r25 = def data, is fighter
+            # r15 = fighter attacker gobj
+            lwz r3, 0x8(r19) # get item gobj attacker
+            lwz r4, 0(r25)
+            lwz r5, 0xC(r19) # get last hit
+            %branchLink("0x801510d4")
+            cmplwi r3, 0
+            lfs f22, 0x88(r27) # weight of defender
+            beq Exit
+            # r3 contains ExtHit offset
+
+            lbz r4, {ExtHitFlags1Offset}(r3)
+            %`rlwinm.`(r4, r4, 0, 31, 31) # check 0x1
+            beq Exit
+
+            UseSetWeight:
+                # if the 'Set Weight' flag is set, use a weight of 100 for the defender
+                lwz r3, -0x514C(r13)
+                lfs f22, 0x10C(r3) # uses same weight value from throws (100)
+
+            Exit:
+                %emptyBlock
+
         # SDI multiplier mechanics patch
         patchInsertAsm "8008e558":
             # SDI distance is increased or decreased based on multiplier
@@ -239,7 +272,7 @@ defineCodes:
 
         # Shieldstun multiplier mechanics patch
         patchInsertAsm "8009304c":
-            # TODO yoshi's shield
+            # note: yoshi's shield isn't affected... let's keep his shield unique
             # Shieldstun for defender is increased or decreased based on multiplier
             # f4 = 1.5
             # f0 is free here
