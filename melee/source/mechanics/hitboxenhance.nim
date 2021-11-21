@@ -101,6 +101,17 @@ defineCodes:
             OriginalExit:
                 lfs f1, -0x5B40(rtoc)
 
+#[         # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
+        patchInsertAsm "80078fe8":
+            # can hit fighters through shield if 0x40 is set to 0
+            lbz r0, 0x42(r23)
+            %`rlwinm.`(r0, r0, 26, 31, 31)
+            bne OriginalExit
+            SkipShield:
+                %branch("0x800790B4")
+            OriginalExit:
+                %`rlwinm.`(r0, r3, 28, 31, 31) # original code line
+ ]#
         # Hitlag multiplier mechanics patch for fighters
         patchInsertAsm "8007db1c":
             # fix for fighters only...
@@ -243,6 +254,7 @@ defineCodes:
                 stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r30)
             
             CalculateFlippyDirection:
+                # TODO flippy for items such as goombas??
                 lwz r0, {ExtHitFlippyTypeOffset}(r28)
                 cmpwi r0, {FlippyTypeNone}
                 beq Epilog
@@ -302,6 +314,7 @@ defineCodes:
             Exit:
                 lwz r0, 0xCA0(r30) # original code line
 
+        # 8026fe68 - proj vs proj 
         # Hitbox Entity Vs Projectiles - Set Variables
         patchInsertAsm "80270bb8":
             # eg. when a player hits an item (eg. goomba) with projectile
@@ -439,14 +452,13 @@ defineCodes:
             cmpwi r4, 343
             %`beq-`(OriginalExit)
 
-            # r5 = ExtFighterDataOffset
+            # r5 = ExtItem/FighterDataOffset
             # r30 = item/fighter data
             lwz r3, 0x8(r29) # load current subaction ptr
             lbz r4, 0x3(r3) # load hitbox id
             mulli r4, r4, {ExtHitSize}
             add r4, r4, r5
             add r4, r30, r4
-#            %calcOffsetExtHit(r4, r30, extDataOffset = ExtFighterDataOffset)
 
             # r4 = the ptr to which ExtHit we are dealing with
             lwz r6, -0x514C(r13) # static vars??
@@ -470,6 +482,15 @@ defineCodes:
             b CheckFlippy
 
             IsWindBox:
+#                # blockability related
+#                mulli r7, r4, 312
+#                addi r7, r7, 2324
+#                add r7, r30, r7
+                
+#                lbz r5, 0x42(r7)
+#                rlwimi r5, r0, 0, 0x40
+#                stb r5, 0x42(r7)
+
                 lbz r5, {ExtHitFlags1Offset}(r4)
                 # r0 = 1 here
                 rlwimi r5, r0, 0, {ExtHitFlags1IsWindBoxMask} # is windbox flag
