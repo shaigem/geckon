@@ -1,4 +1,4 @@
-mr r3, r15
+lwz r3, 0x00000008(r19)
 lwz r4, 0(r25)
 lwz r5, 0x0000000C(r19)
 lis r12, 0x801510d4 @h
