@@ -62,17 +62,18 @@ cmpwi r24, 1
 bne Epilog
 StoreHitstunModifier:
 lfs f0, 12(r28)
-stfs f0, 9296(r30)
+stfs f0, 9280(r30)
 StoreSDIMultiplier:
 lfs f0, 4(r28)
-stfs f0, 9292(r30)
+stfs f0, 9276(r30)
 CalculateFlippyDirection:
-lwz r0, 20(r28)
-cmpwi r0, 0
-beq Epilog
+lbz r3, 16(r28)
 lfs f0, 0x0000002C(r31)
-cmpwi r0, 2
+rlwinm. r0, r3, 0, 26, 26
+bne FlippyForward
+rlwinm. r0, r3, 0, 25, 25
 bne StoreCalculatedDirection
+b Epilog
 FlippyForward:
 fneg f0, f0
 StoreCalculatedDirection:
@@ -88,7 +89,7 @@ cmpwi r3, 1
 beq Return1960
 cmpwi r3, 2
 bne Exit
-li r3, 4140
+li r3, 4124
 b Exit
 Return1960:
 li r3, 0x00001960

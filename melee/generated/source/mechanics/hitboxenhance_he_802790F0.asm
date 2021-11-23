@@ -1,4 +1,4 @@
-mulli r3, r4, 24
+mulli r3, r4, 20
 addi r3, r3, 4044
 add r3, r30, r3
 mr r28, r4

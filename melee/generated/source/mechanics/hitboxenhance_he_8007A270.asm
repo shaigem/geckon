@@ -9,7 +9,7 @@ cmplwi r3, 0
 lfs f22, 0x00000088(r27)
 beq Exit
 lbz r4, 16(r3)
-rlwinm. r4, r4, 0, 31, 31
+rlwinm. r4, r4, 0, 24, 24
 beq Exit
 UseSetWeight:
 lwz r3, 0xFFFFAEB4(r13)

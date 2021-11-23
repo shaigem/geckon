@@ -16,11 +16,9 @@ const
     ExtHitHitstunModifierOffset = ExtHitShieldstunMultiplierOffset + 0x4 # float
 
     ExtHitFlags1Offset = ExtHitHitstunModifierOffset + 0x4 # char
-    ExtHitFlags1IsWindBoxMask = 0x1
 
-    ExtHitFlippyTypeOffset = ExtHitFlags1Offset + 0x4 # int
 # Size of new hitbox data = last var offset + last var offset.size
-const ExtHitSize = ExtHitFlippyTypeOffset + 0x4
+const ExtHitSize = ExtHitFlags1Offset + 0x4
 
 # New variable pointer offsets for both ITEMS & FIGHTERS
 const
@@ -50,11 +48,6 @@ const
 const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
-
-const 
-    FlippyTypeNone = 0
-    FlippyTypeOpposite = 1
-    FlippyTypeForward = 2
 
 proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
 proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
@@ -213,7 +206,7 @@ defineCodes:
             # r3 contains ExtHit offset
 
             lbz r4, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r4, r4, 0, 31, 31) # check 0x1
+            %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
             beq Exit
 
             UseSetWeight:
@@ -239,7 +232,7 @@ defineCodes:
             # r3 contains ExtHit offset
 
             lbz r4, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r4, r4, 0, 31, 31) # check 0x1
+            %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
             beq Exit
 
             UseSetWeight:
@@ -390,12 +383,13 @@ defineCodes:
             
             CalculateFlippyDirection:
                 # TODO flippy for items such as goombas??
-                lwz r0, {ExtHitFlippyTypeOffset}(r28)
-                cmpwi r0, {FlippyTypeNone}
-                beq Epilog
+                lbz r3, {ExtHitFlags1Offset}(r28)
                 lfs f0, 0x2C(r31) # facing direction of attacker
-                cmpwi r0, {FlippyTypeForward}
+                %`rlwinm.`(r0, r3, 0, 26, 26) # check FlippyTypeForward
+                bne FlippyForward
+                %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
                 bne StoreCalculatedDirection
+                b Epilog
                 FlippyForward:
                     fneg f0, f0
                 StoreCalculatedDirection:
@@ -631,7 +625,6 @@ defineCodes:
             stfs f0, {ExtHitHitstunModifierOffset}(r3)
             li r4, 0
             stw r4, {ExtHitFlags1Offset}(r3)
-            stw r4, {ExtHitFlippyTypeOffset}(r3)
             blr
 
             OriginalExit:
@@ -646,111 +639,88 @@ defineCodes:
             # r30 = item/fighter data
             stwu sp, -0x50(sp)
             lwz r3, 0x8(r29) # load current subaction ptr
-
             lbz r4, 0x1(r3)
-            %`rlwinm.`(r4, r4, 0, 27, 27) # 0x10, apply to all previous hitboxes
+            %`rlwinm.`(r0, r4, 0, 27, 27) # 0x10, apply to all previous hitboxes
             bne ApplyToAllPreviousHitboxes
             # otherwise, apply the properties to the given hitbox id
             li r0, 1 # loop once
             rlwinm r4, r4, 27, 29, 31 # 0xE0 hitbox id
+            b SetLoopCount
             ApplyToAllPreviousHitboxes:
                 li r0, 4 # loop 4 times
                 li r4, 0
 
-            mtctr r0
-
+            SetLoopCount:
+                mtctr r0
             # calculate ExtHit ptr offset in Ft/It data
             mulli r4, r4, {ExtHitSize}
             add r4, r4, r5
             add r4, r30, r4
 
-            # load 0.01 to use for multipliying our multipliers
-            lwz r6, -0x514C(r13) # static vars??
-            lfs f1, 0xF4(r6) # load 0.01 into f1
-            # hitlag & SDI multipliers
-            lhz r6, 0x1(r3)
-            rlwinm r6, r6, 0, 0xFFF # 0xFFF, load hitlag multiplier
-            sth r6, 0x44(sp)
-            lhz r6, 0x3(r3)
-            rlwinm r6, r6, 28, 0xFFF # load SDI multiplier
-            sth r6, 0x46(sp)
-            psq_l f0, 0x44(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
-            ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-            psq_st f0, {ExtHitHitlagOffset}(r4), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+            b BeginReadData
 
-            # TODO hitstun is now a byte... read shieldstun multiplier & hitstun modifier
-#            psq_l f1, 0xF4(r6), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
-            lhz r6, 0x4(r3)
-            rlwinm r6, r6, 0, 0xFFF # load shieldstun multiplier
-            sth r6, 0x40(sp)
-#[             lha r6, 0x6(r3)
-            xoris r6, r6, 0x8000
-            sth r6, 0x42(sp)
-            psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
-            
-#            rlwinm r6, r6, 26, 0x1FF # load hitstun modifier
+            CopyToAllHitboxes:
+                # r6 = ptr to next ExtHit
+                # r4 = ptr to old ExtHit
+                addi r6, r4, {ExtHitSize}
+                Loop:
+                    lwz r0, {ExtHitHitlagOffset}(r4)
+                    stw r0, {ExtHitHitlagOffset}(r6)
 
-            # advance script
-            addi r3, r3, 8 # TODO create a function to calculate this
-            stw r3, 0x8(r29) # store current pointing ptr
-            addi sp, sp, 80
-            blr
+                    lwz r0, {ExtHitSDIMultiplierOffset}(r4)
+                    stw r0, {ExtHitSDIMultiplierOffset}(r6)
 
-#[             # r4 = the ptr to which ExtHit we are dealing with
-            lwz r6, -0x514C(r13) # static vars??
-            lfs f1, 0xF4(r6) # load 0.01 into f1
+                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r4)
+                    stw r0, {ExtHitShieldstunMultiplierOffset}(r6)
 
-            # read hitlag & sdi multipliers
-            psq_l f0, 0x4(r3), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
-            ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-            psq_st f0, {ExtHitHitlagOffset}(r4), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+                    lwz r0, {ExtHitHitstunModifierOffset}(r4)
+                    stw r0, {ExtHitHitstunModifierOffset}(r6)
 
-            # read shieldstun multiplier & hitstun modifier
-#            lfd f1, 0xF4(r6) # load 0.01 into f1(ps0)
-            psq_l f1, 0xF4(r6), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
-            psq_l f0, 0x8(r3), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1)
-            ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-            psq_st f0, {ExtHitShieldstunMultiplierOffset}(r4), 0, 7 # store results next to each other
+                    lwz r0, {ExtHitFlags1Offset}(r4)
+                    stw r0, {ExtHitFlags1Offset}(r6)
+                    addi r6, r6, {ExtHitSize}
+                    bdnz Loop
+                b Exit
 
-            # read isWindbox & Flippy bits
-            lbz r6, 0xC(r3)
-            %`rlwinm.`(r0, r6, 0, 24, 24)
-            li r0, 1
-            bne IsWindBox
+            BeginReadData:
+                # load 0.01 to use for multipliying our multipliers
+                lwz r6, -0x514C(r13) # static vars??
+                lfs f1, 0xF4(r6) # load 0.01 into f1
+                # hitlag & SDI multipliers
+                lhz r6, 0x1(r3)
+                rlwinm r6, r6, 0, 0xFFF # 0xFFF, load hitlag multiplier
+                sth r6, 0x44(sp)
+                lhz r6, 0x3(r3)
+                rlwinm r6, r6, 28, 0xFFF # load SDI multiplier
+                sth r6, 0x46(sp)
+                psq_l f0, 0x44(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
+                ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
+                psq_st f0, {ExtHitHitlagOffset}(r4), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
-            b CheckFlippy
+                # read shieldstun multiplier & hitstun modifier
+                lwz r6, -0x514C(r13)
+                psq_l f1, 0xF4(r6), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
+                lhz r6, 0x4(r3)
+                rlwinm r6, r6, 0, 0xFFF # load shieldstun multiplier
+                sth r6, 0x40(sp)
+                lbz r6, 0x6(r3) # read hitstun modifier byte
+                sth r6, 0x42(sp)
+                psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
+                ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
+                psq_st f0, {ExtHitShieldstunMultiplierOffset}(r4), 0, 7 # store results next to each other
+                # read isSetWeight & Flippy bits & store it
+                lbz r6, 0x7(r3)
+                stb r6, {ExtHitFlags1Offset}(r4)
 
-            IsWindBox:
-#                # blockability related
-#                mulli r7, r4, 312
-#                addi r7, r7, 2324
-#                add r7, r30, r7
-                
-#                lbz r5, 0x42(r7)
-#                rlwimi r5, r0, 0, 0x40
-#                stb r5, 0x42(r7)
+            bdnz CopyToAllHitboxes
 
-                lbz r5, {ExtHitFlags1Offset}(r4)
-                # r0 = 1 here
-                rlwimi r5, r0, 0, {ExtHitFlags1IsWindBoxMask} # is windbox flag
-                stb r0, {ExtHitFlags1Offset}(r4)
+            Exit:
+                # advance script
+                addi r3, r3, 8 # TODO create a function to calculate this
+                stw r3, 0x8(r29) # store current pointing ptr
+                addi sp, sp, 80
+                blr
 
-            CheckFlippy:
-                %`rlwinm.`(r5, r6, 0, 25, 25) # opposite facing direction flippy
-                # r0 = 1
-                bne StoreFlippyType
-                %`rlwinm.`(r5, r6, 0, 26, 26) # towards facing direction flippy
-                li r0, 2
-                bne StoreFlippyType
-                li r0, 0
-                StoreFlippyType:
-                    stw r0, {ExtHitFlippyTypeOffset}(r4)
-
-            # advance script
-            addi r3, r3, 16 # TODO create a function to calculate this
-            stw r3, 0x8(r29) # store current pointing ptr
-            blr
- ]#
             OriginalExit:
                 fmr f3, f1
 

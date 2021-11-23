@@ -10,7 +10,7 @@ bctrl
 cmpwi r3, 0
 beq Exit
 lfs f0, 8(r3)
-stfs f0, 9300(r29)
+stfs f0, 9284(r29)
 Exit:
 mr r6, r30
 stw r0, 0x000019B0(r29)

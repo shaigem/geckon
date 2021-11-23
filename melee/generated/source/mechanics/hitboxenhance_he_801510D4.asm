@@ -38,7 +38,7 @@ add r3, r28, r5
 b Comparison
 Loop:
 add r26, r26, r4
-addi r3, r3, 24
+addi r3, r3, 20
 Comparison:
 cmplw r26, r29
 bdnzf eq, Loop
