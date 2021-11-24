@@ -704,6 +704,8 @@ defineCodes:
                 rlwinm r6, r6, 0, 0xFFF # load shieldstun multiplier
                 sth r6, 0x40(sp)
                 lbz r6, 0x6(r3) # read hitstun modifier byte
+                slwi r6, r6, 24
+                srawi r6, r6, 24
                 sth r6, 0x42(sp)
                 psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
                 ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00

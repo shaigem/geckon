@@ -51,6 +51,8 @@ lhz r6, 0x00000004(r3)
 rlwinm r6, r6, 0, 0x00000FFF
 sth r6, 0x00000040(sp)
 lbz r6, 0x00000006(r3)
+slwi r6, r6, 24
+srawi r6, r6, 24
 sth r6, 0x00000042(sp)
 psq_l f0, 0x00000040(sp), 0, 5
 ps_mul f0, f1, f0
