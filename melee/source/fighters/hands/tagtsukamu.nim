@@ -67,18 +67,22 @@ defineCodes:
         # rolls another random number to see if we should use Tagtsukamu or use the original
         # move decided by the CPU.
         patchInsertAsm "80156634":
-            # CPU decision rolled a 3 which would use Taggoopa (?)
+            # CPU decision rolled a 3 which would use Drill (?)
             cmpwi r3, 3
             bne Exit
+            mr r7, r3 # backup r3
             # Roll once more to see if we should just continue with Taggoopa or use Tagtsukamu
             %hsdRandi(max = 1, inclusive = true)
             cmpwi r3, 0
-            bne Exit
+            bne RestoreOldValue
 
             TagTsukamu:
                 li r3, 0x17C
                 %branch("0x8015664c")
             
+            RestoreOldValue:
+                mr r3, r7
+
             Exit:
                 lbz r0, 0(r26) # original code line
 
