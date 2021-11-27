@@ -19,6 +19,8 @@ defineCodes:
 
             bl Data
             mflr r5
+            lwz r4, 0xC(r5)
+            stw r4, 0x18AC(r25)
             lfs f1, 0(r5) # gotta change to 3E23D70A & 3DA3D70A
             lfs f2, 0x4(r5)
             addi r4, r15, 0xb0 # TODO make target the fthit pos_prev?
@@ -139,7 +141,7 @@ defineCodes:
                     fcmpo cr0, f29, f30
                     bge lbl_8015BF0C
                     lfs f0, 0x1C(sp)
-                    stfs f0, 0x80(r31)
+                    stfs f0, 0x80(r31) # TODO wrong 0x1c & 0x20
                     lfs f0, 0x20(sp)
                     stfs f0, 0x84(r31)
 #                    lfs f0, -0x57E8(rtoc)
@@ -177,9 +179,10 @@ defineCodes:
 
             Data:
                 blrl
-                %`.float`(5)
-                %`.float`(2)
+                %`.float`(0.16)
+                %`.float`(0.08)
                 %`.float`(0.50)
+                %`.float`(10)
 
 
 #[ f1 = speed stuff
