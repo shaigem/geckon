@@ -5,34 +5,53 @@ bl Data
 mflr r5
 lwz r4, 0x000000E0(r25)
 cmpwi r4, 0
-bne Hi
+bne CalculateVelHitbox
 lfs f0, 0x00000010(r5)
 fmr f25, f0
 b OriginalExit
-Hi:
-lwz r4, 0x0000000C(r5)
-stw r4, 0x000018AC(r25)
+CalculateVelHitbox:
+mr r6, r3
 lfs f1, 0(r5)
 lfs f2, 0x00000004(r5)
-addi r4, r15, 0x000000B0
+addi r4, r3, 0x0000004C
 lwz r3, 0(r25)
 bl ToPointFunc
-lfs f1, 0x000000CC(r15)
-lfs f2, 0x000000C8(r15)
-lfs f3, 0x000000B0(r15)
-lfs f4, 0x000000B0(r25)
-fsubs f3, f4, f3
+lfs f5, 0x0000004C(r6)
+lfs f6, 0x000000B0(r25)
+fsubs f5, f6, f5
 lfs f0, 0xFFFF8900(rtoc)
-fcmpo cr0, f3, f0
-bge+ not_reverse
+fcmpo cr0, f5, f0
+bge+ CheckReverseForAttackerDefender
+fneg f2, f2
+CheckReverseForAttackerDefender:
+lfs f3, 0x000000CC(r15)
+lfs f4, 0x000000C8(r15)
+lfs f5, 0x000000B0(r15)
+lfs f6, 0x000000B0(r25)
+fsubs f5, f6, f5
+lfs f0, 0xFFFF8900(rtoc)
+fcmpo cr0, f5, f0
+bge+ NotReverse
 lfs f0, 0xFFFF8910(rtoc)
-fmuls f2, f0, f2
-not_reverse:
+fmuls f4, f0, f4
+NotReverse:
+fadds f1, f3, f1
+fadds f2, f4, f2
+lis r12, 0x80022c30 @h
+ori r12, r12, 0x80022c30 @l
+mtctr r12
+bctrl
+lfs f0, 0xFFFF893C(rtoc)
+fmuls f25, f0, f1
+AdjustSpeed:
 lfs f3, 0x00000080(r15)
 lfs f4, 0x00000084(r15)
+lfs f0, 0xFFFFCC58(rtoc)
 fmuls f3, f3, f3
 fmuls f4, f4, f4
 fadds f3, f4, f3
+fcmpo cr0, f3, f0
+beq Exit
 frsqrte f4, f3
 lfd f6, 0xFFFFA828(rtoc)
 lfd f5, 0xFFFFA830(rtoc)
@@ -57,9 +76,10 @@ bl Data
 mflr r3
 lfs f4, 0x00000008(r3)
 fmuls f26, f4, f3
-lis r0, 0x8007a8f0 @h
-ori r0, r0, 0x8007a8f0 @l
-mtctr r0
+Exit:
+lis r12, 0x8007a924 @h
+ori r12, r12, 0x8007a924 @l
+mtctr r12
 bctr
 ToPointFunc:
 mflr r0
@@ -113,10 +133,6 @@ lfs f29, 0x00000024(r1)
 lbl_8015BEF8:
 fcmpo cr0, f29, f30
 bge lbl_8015BF0C
-lfs f0, 0x0000001C(sp)
-stfs f0, 0x00000080(r31)
-lfs f0, 0x00000020(sp)
-stfs f0, 0x00000084(r31)
 b lbl_8015BF40
 lbl_8015BF0C:
 addi r3, r1, 0x0000002C
@@ -124,21 +140,9 @@ lis r12, 0x8000D2EC @h
 ori r12, r12, 0x8000D2EC @l
 mtctr r12
 bctrl
-fmuls f1, f29, f31
-lfs f0, 0x0000002C(r1)
-fmuls f0, f0, f1
-stfs f0, 0x0000002C(r1)
-lfs f0, 0x00000030(r1)
-fmuls f0, f0, f1
-stfs f0, 0x00000030(r1)
-lfs f0, 0x00000034(r1)
-fmuls f0, f0, f1
-stfs f0, 0x00000034(r1)
 lbl_8015BF40:
-lfs f0, 0x0000002C(r1)
-stfs f0, 0x0000008C(r31)
-lfs f0, 0x00000030(r1)
-stfs f0, 0x00000090(r31)
+lfs f2, 0x0000002C(r1)
+lfs f1, 0x00000030(r1)
 lwz r0, 0x0000005C(r1)
 lfd f31, 0x00000050(r1)
 lfd f30, 0x00000048(r1)
