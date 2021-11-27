@@ -16,16 +16,25 @@ defineCodes:
 
             cmplwi r0, 367
             bne OriginalExit
-
             bl Data
             mflr r5
-            lwz r4, 0xC(r5)
-            stw r4, 0x18AC(r25)
-            lfs f1, 0(r5) # gotta change to 3E23D70A & 3DA3D70A
-            lfs f2, 0x4(r5)
-            addi r4, r15, 0xb0 # TODO make target the fthit pos_prev?
-            lwz r3, 0(r25)
-            bl ToPointFunc
+            lwz r4, 0xE0(r25) # air state
+            cmpwi r4, 0
+            bne Hi
+            lfs f0, 0x10(r5)
+            fmr f25, f0
+            b OriginalExit
+
+
+            Hi:
+
+                lwz r4, 0xC(r5)
+                stw r4, 0x18AC(r25)
+                lfs f1, 0(r5) # gotta change to 3E23D70A & 3DA3D70A
+                lfs f2, 0x4(r5)
+                addi r4, r15, 0xb0 # TODO make target the fthit pos_prev?
+                lwz r3, 0(r25)
+                bl ToPointFunc
 
             lfs f1, 0xCC(r15) # attacker y vel
             lfs f2, 0xC8(r15) # x vel
@@ -183,6 +192,7 @@ defineCodes:
                 %`.float`(0.08)
                 %`.float`(0.50)
                 %`.float`(10)
+                %`.float`(80)
 
 
 #[ f1 = speed stuff

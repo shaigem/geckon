@@ -3,6 +3,13 @@ cmplwi r0, 367
 bne OriginalExit
 bl Data
 mflr r5
+lwz r4, 0x000000E0(r25)
+cmpwi r4, 0
+bne Hi
+lfs f0, 0x00000010(r5)
+fmr f25, f0
+b OriginalExit
+Hi:
 lwz r4, 0x0000000C(r5)
 stw r4, 0x000018AC(r25)
 lfs f1, 0(r5)
@@ -147,5 +154,6 @@ blrl
 .float 0.08
 .float 0.5
 .float 10.0
+.float 80.0
 OriginalExit:
 lwz r0, 0x00000020(r3)
