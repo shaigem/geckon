@@ -3,8 +3,8 @@ cmplwi r0, 367
 bne OriginalExit
 bl Data
 mflr r5
-lwz r3, 0x0000000C(r5)
-stw r3, 0x000018AC(r25)
+lwz r4, 0x0000000C(r5)
+stw r4, 0x000018AC(r25)
 lfs f1, 0(r5)
 lfs f2, 0x00000004(r5)
 addi r4, r15, 0x000000B0
