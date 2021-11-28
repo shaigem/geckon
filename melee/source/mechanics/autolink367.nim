@@ -5,6 +5,181 @@ defineCodes:
     createCode "Autolink 367 Degrees":
         description ""
         authors "Ronnie/sushie"
+        
+#[         patchInsertAsm "8008e73c":
+            # r31 = fighter data
+            # r30 = fighter gobj
+
+            %load("0x80459278", r3)
+            lwz r5, 0x8(r3) # gobj of source
+            lwz r4, 0x1868(r31) # dmg source of fighter
+            cmplw r4, r5
+            bne OriginalExit
+            lwz r4, 0xC(r3) 
+            lwz r4, 0x20(r4) # angle of last hit
+            cmplwi r4, 367
+            bne OriginalExit
+
+
+            # TODO anymore checks?
+
+            lwz r4, 0x1868(r31) # gobj of attacker
+            lwz r4, 0x2C(r4) # data of attacker
+
+
+
+            bl Data
+            mflr r7
+            lfs f1, 4(r7)
+            lfs f2, 8(r7)
+            lwz r4, 0xC(r3)
+            addi r4, r4, 0x4C
+            mr r3, r30
+            bl ToPointFunc
+            lfs f0, 0(r7) # 0.20
+            fmuls f3, f2, f0 # 20% of diff x
+            fmuls f4, f1, f0 # 20% of diff y
+            lfs f5, 0x8C(r31)
+            fadds f3, f5, f3
+            lfs f5, 0x90(r31)
+            fadds f4, f5, f4
+
+            stfs f3, 0x8C(r31)
+            stfs f4, 0x90(r31) 
+            AdjustSpeed:
+                
+#[                 lwz r5, 0xC(r3) # get hit
+                lfs f3, 0xB0(r31) # our x pos
+                lfs f4, 0xB4(r31) # our y pos
+                lfs f5, 0x4C(r5) # hit x pos
+                lfs f6, 0x50(r5) # hit y pos
+                fsubs f3, f3, f5 # diff x
+                fsubs f4, f4, f6 # diff y
+
+                bl Data
+                mflr r3
+                lfs f0, 0(r3) # 0.20
+                fmuls f3, f3, f0 # 20% of diff x
+                fmuls f4, f4, f0 # 20% of diff y
+
+                lfs f5, 0x80(r4)
+                lfs f6, 0x84(r4)
+                fsubs f3, f5, f3
+                fsubs f4, f6, f4
+                
+                lfs f5, 0x8c(r31)
+                lfs f6, 0x90(r31)
+
+                fadds f3, f3, f5
+                fadds f4, f4, f6
+
+                stfs f3, 0x8C(r31)
+                stfs f4, 0x90(r31) ]#
+                b OriginalExit
+
+#                bl Data
+#                mflr r3
+#                lfs f4, 0x8(r3)
+#                fmuls f26, f4, f3 # 0.5 * velocity
+
+#[ f1 = speed stuff
+   f2 = speed stuff
+   r3 = our gobj
+   r4 = vec pos of where to go ]#
+            ToPointFunc:
+                mflr r0
+                stw r0, 4(r1)
+                stwu r1, -0x58(r1)
+                stfd f31, 0x50(r1)
+                fmr f31, f2
+                stfd f30, 0x48(r1)
+                fmr f30, f1
+                stfd f29, 0x40(r1)
+                stw r31, 0x3c(r1)
+                stw r30, 0x38(r1)
+#                addi r30, r5, 0
+                addi r5, r1, 0x2c
+                lwz r31, 0x2c(r3)
+                addi r3, r4, 0
+                addi r4, r31, 0xb0
+                %branchLink("0x8000D4F8")
+                #bl func_8000D4F8
+                lfs f1, 0x2c(r1)
+                lfs f0, 0x30(r1)
+                fmuls f2, f1, f1
+                lfs f3, 0x34(r1)
+                fmuls f1, f0, f0
+                lfs f0, -0x57E8(rtoc)
+                fmuls f3, f3, f3
+                fadds f1, f2, f1
+                fadds f29, f3, f1
+                fcmpo cr0, f29, f0
+                ble lbl_8015BEF8
+                frsqrte f1, f29
+                lfd f3, -0x57D8(rtoc)
+                lfd f2, -0x57D0(rtoc)
+                fmul f0, f1, f1
+                fmul f1, f3, f1
+                fnmsub f0, f29, f0, f2
+                fmul f1, f1, f0
+                fmul f0, f1, f1
+                fmul f1, f3, f1
+                fnmsub f0, f29, f0, f2
+                fmul f1, f1, f0
+                fmul f0, f1, f1
+                fmul f1, f3, f1
+                fnmsub f0, f29, f0, f2
+                fmul f0, f1, f0
+                fmul f0, f29, f0
+                frsp f0, f0
+                stfs f0, 0x24(r1)
+                lfs f29, 0x24(r1)
+                lbl_8015BEF8:
+                    fcmpo cr0, f29, f30
+                    bge lbl_8015BF0C
+                    b lbl_8015BF40
+                lbl_8015BF0C:
+#                    stfs f29, 0(r30)
+                    addi r3, r1, 0x2c
+                    %branchLink("0x8000D2EC")
+#                    bl func_8000D2EC
+#                    fmuls f1, f29, f31
+#                    lfs f0, 0x2c(r1)
+#                    fmuls f0, f0, f1
+#                    stfs f0, 0x2c(r1)
+#                    lfs f0, 0x30(r1)
+#                    fmuls f0, f0, f1
+#                    stfs f0, 0x30(r1)
+#                    lfs f0, 0x34(r1)
+#                    fmuls f0, f0, f1
+#                    stfs f0, 0x34(r1)
+                lbl_8015BF40:
+                    lfs f2, 0x2c(r1)
+#                    stfs f0, 0x8c(r31)
+                    lfs f1, 0x30(r1)
+#                    stfs f0, 0x90(r31)
+                    lwz r0, 0x5c(r1)
+                    lfd f31, 0x50(r1)
+                    lfd f30, 0x48(r1)
+                    lfd f29, 0x40(r1)
+                    lwz r31, 0x3c(r1)
+                    lwz r30, 0x38(r1)
+                    addi r1, r1, 0x58
+                    mtlr r0
+                    blr
+
+
+            Data:
+                blrl
+                %`.float`(0.20)
+                %`.float`(0.16)
+                %`.float`(0.08)
+
+            OriginalExit:
+                lwz r3, -0x514C(r13) # restore r3
+                lfs f2, 0x0620(r31)
+
+ ]#
         patchInsertAsm "8007a868":
             # r3 = Hit struct
             # r15 = attacker data
@@ -67,6 +242,8 @@ defineCodes:
                 NotReverse:
                     fadds f1, f3, f1
                     fadds f2, f4, f2
+#                    stfs f1, 0x90(r25)
+#                    stfs f2, 0x8C(r25)
 #            %branchLink("0x80022c30") # atan2
 
 #            fmr f3, f1 # save atan result
@@ -78,53 +255,17 @@ defineCodes:
 
             lfs f0, -0x76c4(rtoc) # 180/pi. Convert radians to degrees
             fmuls f25, f0, f1
-
-            AdjustSpeed:
-                lfs f3, 0x80(r15)
-                lfs f4, 0x84(r15)
-                lfs f0, -0x33A8(rtoc) # 0.0, original code line
-
-                fmuls f3, f3, f3 # vel x squared
-                fmuls f4, f4, f4 # vel y squared
-                fadds f3, f4, f3 # add velocities together
-                fcmpo cr0, f3, f0
-                beq Exit
-                frsqrte f4, f3 # sqrt
-                # f4 = recipricol = f1
-                # f29 = f3
-                # f3 = f6
-                # f2 = f5
-
-                lfd f6, -0x57D8(rtoc)
-                lfd f5, -0x57D0(rtoc)
-                fmul f0, f4, f4
-                fmul f4, f6, f4
-                fnmsub f0, f3, f0, f5
-
-                fmul f4, f4, f0
-                fmul f0, f4, f4
-                fmul f4, f6, f4
-                fnmsub f0, f3, f0, f5
-
-                fmul f4, f4, f0
-                fmul f0, f4, f4
-                fmul f4, f6, f4
-                fnmsub f0, f3, f0, f5
-
-                fmul f0, f4, f0
-                fmul f0, f3, f0
-                frsp f0, f0
-                fmr f3, f0
-                
-                lfs f4, 0x198(r15) # weight of attacker
-                fmuls f3, f4, f3
-                bl Data
-                mflr r3
-                lfs f4, 0x8(r3)
-                fmuls f26, f4, f3 # 0.5 * velocity
+            fctiwz f0, f25
+            stfs f24, 0(r31)
+            stfd f0, 0x210(sp)
+            lwz r3, 0x214(sp)
+            cmpwi r3, 0
+            bge Exit # angle is positive
+            addi r3, r3, 360
 
             Exit:
-                %branch("0x8007a924")
+                stw r3, 0x4(r31)
+                %branch("0x8007a938")
 
 #[ f1 = speed stuff
    f2 = speed stuff

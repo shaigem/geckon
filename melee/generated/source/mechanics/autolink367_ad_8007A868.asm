@@ -43,42 +43,17 @@ mtctr r12
 bctrl
 lfs f0, 0xFFFF893C(rtoc)
 fmuls f25, f0, f1
-AdjustSpeed:
-lfs f3, 0x00000080(r15)
-lfs f4, 0x00000084(r15)
-lfs f0, 0xFFFFCC58(rtoc)
-fmuls f3, f3, f3
-fmuls f4, f4, f4
-fadds f3, f4, f3
-fcmpo cr0, f3, f0
-beq Exit
-frsqrte f4, f3
-lfd f6, 0xFFFFA828(rtoc)
-lfd f5, 0xFFFFA830(rtoc)
-fmul f0, f4, f4
-fmul f4, f6, f4
-fnmsub f0, f3, f0, f5
-fmul f4, f4, f0
-fmul f0, f4, f4
-fmul f4, f6, f4
-fnmsub f0, f3, f0, f5
-fmul f4, f4, f0
-fmul f0, f4, f4
-fmul f4, f6, f4
-fnmsub f0, f3, f0, f5
-fmul f0, f4, f0
-fmul f0, f3, f0
-frsp f0, f0
-fmr f3, f0
-lfs f4, 0x00000198(r15)
-fmuls f3, f4, f3
-bl Data
-mflr r3
-lfs f4, 0x00000008(r3)
-fmuls f26, f4, f3
+fctiwz f0, f25
+stfs f24, 0(r31)
+stfd f0, 0x00000210(sp)
+lwz r3, 0x00000214(sp)
+cmpwi r3, 0
+bge Exit
+addi r3, r3, 360
 Exit:
-lis r12, 0x8007a924 @h
-ori r12, r12, 0x8007a924 @l
+stw r3, 0x00000004(r31)
+lis r12, 0x8007a938 @h
+ori r12, r12, 0x8007a938 @l
 mtctr r12
 bctr
 ToPointFunc:
