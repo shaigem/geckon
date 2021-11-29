@@ -22,8 +22,9 @@ const
     fighterDataSize: FighterDataOrigSize,
     itemDataSize: ItemDataOrigSize)
 
+    # as of commit #f779005 Nov-29-2021 @ 1:28 AM EST
     MexGameData = GameData(dataType: GameDataType.Mex,
-    fighterDataSize: FighterDataOrigSize + 0x20 + 32,
+    fighterDataSize: FighterDataOrigSize + 16 + 32,
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
