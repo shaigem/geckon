@@ -36,7 +36,7 @@ macro defineCodes*(body: untyped): untyped =
         for b in body:
                 case b.kind:
                 of nnkCommand:
-                        expectKind(b[1], nnkStrLit)
+                        expectKind(b[1], {nnkStrLit, nnkIdent})
                         let codeNameNode = b[1]
                         codesArrayNode.add ident(
                                         codeNameNode.strVal.toSnakeCase)

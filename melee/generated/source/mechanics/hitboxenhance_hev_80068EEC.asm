@@ -1,4 +1,3 @@
-NonVanilla20XX:
 li r4, 0
 stw r4, 0x00000020(r31)
 stw r4, 0x00000024(r31)

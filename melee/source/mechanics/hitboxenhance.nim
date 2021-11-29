@@ -1,12 +1,142 @@
 import geckon
 
-# TODO add m-ex support
+type GameDataType* = enum
+        Vanilla, A20XX, Mex
+
+type
+    GameData = object
+        dataType: GameDataType
+        fighterDataSize: int
+        itemDataSize: int
 
 const
     FighterDataOrigSize = 0x23EC
     ItemDataOrigSize = 0xFCC
-    ExtFighterDataOffset = FighterDataOrigSize
-    ExtItemDataOffset = ItemDataOrigSize
+
+const 
+    VanillaGameData = GameData(dataType: GameDataType.Vanilla,
+    fighterDataSize: FighterDataOrigSize,
+    itemDataSize: ItemDataOrigSize)
+    
+    A20XXGameData = GameData(dataType: GameDataType.A20XX,
+    fighterDataSize: FighterDataOrigSize,
+    itemDataSize: ItemDataOrigSize)
+
+    MexGameData = GameData(dataType: GameDataType.Mex,
+    fighterDataSize: FighterDataOrigSize + 0x20 + 32,
+    itemDataSize: ItemDataOrigSize + 0x4)
+
+# The current game data to compile the code for
+const CurrentGameData = A20XXGameData
+
+const
+    CodeVersion = "v1.0.0"
+    CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
+    CodeAuthors = ["sushie"]
+    CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
+    ExtFighterDataOffset = CurrentGameData.fighterDataSize
+    ExtItemDataOffset = CurrentGameData.itemDataSize
+
+proc patchItemDataAllocation(extraDataSize: int): seq[CodeSectionNode] =
+    let newDataSize = CurrentGameData.itemDataSize + extraDataSize
+    let
+        SizeAdjust =
+                patchWrite32Bits "80266fd8":
+                    li r4, {newDataSize}
+
+        # Initialize Extended Item Data
+        InitItemData = 
+            patchInsertAsm "80268754":
+                addi r29, r3, 0 # backup r3
+
+                li r4, {newDataSize} # was 4044
+                %branchLink("0x8000c160")
+
+                Exit:
+                    mr r3, r29 # restore r3
+                    %`mr.`(r6, r3)
+
+    case CurrentGameData.dataType
+    of Vanilla:
+        discard
+    of A20XX:
+        discard
+    of Mex:
+        discard
+    # for all game types
+    result.add SizeAdjust
+    result.add InitItemData
+
+proc patchFighterDataAllocation(extraDataSize: int): seq[CodeSectionNode] =
+    let 
+        InitPlayerBlockValues = 
+            patchInsertAsm "80068eec":
+        # credits to https://github.com/UnclePunch/Training-Mode/blob/master/ASM/m-ex/Custom%20Playerdata%20Variables/Initialize%20Extended%20Playerblock%20Values.asm
+
+            block:
+                if CurrentGameData.dataType == A20XX:
+                    ppc:
+                        li r4, 0
+                        stw r4, 0x20(r31)
+                        stw r4, 0x24(r31)
+                        stb r4, 0x0D(r3)
+                        sth r4, 0x0E(r3)
+                        stb r4, 0x21FD(r3)
+                        sth r4, 0x21FE(r3)
+                else:
+                    ppc:
+                        %emptyBlock
+
+            # Backup Data Pointer After Creation
+            addi r30, r3, 0
+
+            # Get Player Data Length
+            %load("0x80458fd0", r4)
+            lwz r4, 0x20(r4)
+            # Zero Entire Data Block
+            %branchLink("0x8000c160")
+
+            Exit:
+                mr r3, r30
+                lis r4, 0x8046
+
+        SizeAdjust = 
+            patchWrite32Bits "800679bc":
+                li r4, {CurrentGameData.fighterDataSize + extraDataSize}
+
+        # # Initialize Extended Playerblock Values (Result screen)
+        # patchInsertAsm "800BE830":
+        #     # Backup Data Pointer After Creation
+        #     addi r30, r3, 0
+
+        #     # Get Player Data Length
+        #     %load("0x80458fd0", r4)
+        #     lwz r4,0x20(r4)
+        #     # Zero Entire Data Block
+        #     %branchLink("0x8000c160")
+
+        #     Exit:
+        #         mr r3, r30
+        #         lis r4, 0x8046
+
+    case CurrentGameData.dataType
+    of Vanilla:
+        discard
+    of A20XX:
+        # Fix 20XX Crash when Allocating New PlayerBlock Size
+        # TODO REMOVE IF NOT USING 20XX
+        let SwingFileColorsFix = 
+            patchWrite32Bits "8013651c":
+                blr # this breaks 'Marth and Roy Sword Swing File Colors'!!!
+
+        result.add SwingFileColorsFix
+
+    of Mex:
+        discard
+
+    # for all game types
+    result.add SizeAdjust
+    result.add InitPlayerBlockValues
 
 # Variable offsets in our new ExtHit struct
 const
@@ -39,11 +169,7 @@ const
 
 const 
     ExtFighterDataSize = (ShieldstunMultiplierOffset + 0x4)
-    ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4) 
-
-const
-    NewFighterDataSize = FighterDataOrigSize + ExtFighterDataSize
-    NewItemDataSize = ItemDataOrigSize + ExtItemDataSize
+    ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4)
 
 const
     CustomFunctionReadEvent = "0x801510e0"
@@ -53,9 +179,9 @@ proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
 proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
 
 defineCodes:
-    createCode "Hitbox Extension":
-        description ""
-        authors "Ronnie/sushie"
+    createCode CodeName:
+        description CodeDescription
+        authors CodeAuthors
 
         patchInsertAsm "801510d8":
             # custom function that finds the appropriate ExtHit offset for a given hitbox struct ptr
@@ -754,72 +880,5 @@ defineCodes:
             OriginalExit:
                 lwz r12, 0(r3)
 
-        #[EXTEND ITEMBLOCK]#
-
-        # Adjust the size
-        patchWrite32Bits "80266fd8":
-            li r4, {NewItemDataSize}
-
-        # Initialize Extended Item Data
-        patchInsertAsm "80268754":
-            addi r29, r3, 0 # backup r3
-
-            li r4, {NewItemDataSize} # was 4044
-            %branchLink("0x8000c160")
-
-            Exit:
-                mr r3, r29 # restore r3
-                %`mr.`(r6, r3)
-
-        #[EXTEND PLAYERBLOCK]#
-
-        # Fix 20XX Crash when Allocating New PlayerBlock Size
-        # TODO REMOVE IF NOT USING 20XX
-        patchWrite32Bits "8013651c":
-            blr # this breaks 'Marth and Roy Sword Swing File Colors'!!!
-
-        # Adjust the size
-        patchWrite32Bits "800679bc":
-            li r4, {NewFighterDataSize}
-
-        # Initialize Extended Playerblock Values
-        patchInsertAsm "80068eec":
-            # credits to https://github.com/UnclePunch/Training-Mode/blob/master/ASM/m-ex/Custom%20Playerdata%20Variables/Initialize%20Extended%20Playerblock%20Values.asm
-
-            # TODO remove NonVanilla20XX if not using 20XX!!!
-            NonVanilla20XX:
-                li r4, 0
-                stw r4, 0x20(r31)
-                stw r4, 0x24(r31)
-                stb r4, 0x0D(r3)
-                sth r4, 0x0E(r3)
-                stb r4, 0x21FD(r3)
-                sth r4, 0x21FE(r3)
-
-            # Backup Data Pointer After Creation
-            addi r30, r3, 0
-
-            # Get Player Data Length
-            %load("0x80458fd0", r4)
-            lwz r4,0x20(r4)
-            # Zero Entire Data Block
-            %branchLink("0x8000c160")
-
-            Exit:
-                mr r3, r30
-                lis r4, 0x8046
-
-        # Initialize Extended Playerblock Values (Result screen)
-        patchInsertAsm "800BE830":
-            # Backup Data Pointer After Creation
-            addi r30, r3, 0
-
-            # Get Player Data Length
-            %load("0x80458fd0", r4)
-            lwz r4,0x20(r4)
-            # Zero Entire Data Block
-            %branchLink("0x8000c160")
-
-            Exit:
-                mr r3, r30
-                lis r4, 0x8046
+        patchItemDataAllocation(ExtItemDataSize)
+        patchFighterDataAllocation(ExtFighterDataSize)
