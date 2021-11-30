@@ -18,6 +18,9 @@ defineCodes:
     createCode "Brawl Bury Mechanics v1.0.4":
         authors "Ronnie"
         description "Strong hits unburies players like in Brawl"
+        patchWrite32Bits "800c1444":
+            # disable invincibility on BuryJump
+            nop
         patchInsertAsm "8008ecbc":
             # Check if we are in a flinchless state
             %`bne-`(CheckInBuryWaitState) # we are in flinchless state, so check if we are in a bury action state

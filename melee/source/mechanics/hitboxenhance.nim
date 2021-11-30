@@ -1,5 +1,38 @@
 import geckon
 
+#[ - code: 0xF1
+  name: Hitbox Extension
+  parameters:
+  - name: Hitbox ID
+    bitCount: 3
+  - name: Apply To All Previous Hitboxes
+    bitCount: 1
+    enums:
+    - false
+    - true
+  - name: Hitlag Multiplier %
+    bitCount: 12
+  - name: SDI Multiplier %
+    bitCount: 12
+  - name: Shieldstun Multiplier %
+    bitCount: 12
+  - name: Hitstun Modifier
+    bitCount: 8
+    signed: true
+  - name: Set Weight
+    bitCount: 1
+    enums:
+      - false
+      - true
+  - name: Angle Flipper
+    bitCount: 2
+    enums:
+      - Regular
+      - Current Facing Direction
+      - Opposite Current Facing Direction
+  - name: Padding
+    bitCount: 5 ]#
+
 type GameDataType* = enum
         Vanilla, A20XX, Mex
 
@@ -28,7 +61,7 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = A20XXGameData
+const CurrentGameData = VanillaGameData
 
 const
     CodeVersion = "v1.0.0"
@@ -125,7 +158,6 @@ proc patchFighterDataAllocation(extraDataSize: int): seq[CodeSectionNode] =
         discard
     of A20XX:
         # Fix 20XX Crash when Allocating New PlayerBlock Size
-        # TODO REMOVE IF NOT USING 20XX
         let SwingFileColorsFix = 
             patchWrite32Bits "8013651c":
                 blr # this breaks 'Marth and Roy Sword Swing File Colors'!!!
