@@ -15,7 +15,7 @@ const
     BuryWaitActionStateId = 295
 
 defineCodes:
-    createCode "Brawl Bury Mechanics v1.0.4":
+    createCode "Brawl Bury Mechanics v1.0.5":
         authors "Ronnie"
         description "Strong hits unburies players like in Brawl"
         patchWrite32Bits "800c1444":

@@ -112,7 +112,7 @@ CBC10048 CBA10040
 38210058 7C0803A6
 4E800020 80030020
 60000000 00000000
-$Brawl Bury Mechanics v1.0.4 [Ronnie]
+$Brawl Bury Mechanics v1.0.5 [Ronnie]
 *Strong hits unburies players like in Brawl
 040c1444 60000000
 C208ECBC 0000000D
