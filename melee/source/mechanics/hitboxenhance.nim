@@ -71,7 +71,7 @@ const
 const CurrentGameData = A20XXGameData
 
 const
-    CodeVersion = "v1.1.0"
+    CodeVersion = "v1.1.1"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -869,6 +869,18 @@ defineCodes:
             stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
             Exit:
                 lwz r0, 0x24(sp)
+
+        # Fix for Hitlag multipliers not affecting hits within grabs
+        # TODO what about for item related hitlag?
+        patchInsertAsm "8006d95c":
+            # reset multiplier ONLY when there isn't a grabbed_attacker ptr
+            # r30 = fighter data
+            lwz r3, 0x1A58(r30) # grab_attacker ptr
+            cmplwi r3, 0
+            bne Exit # if someone is grabbing us, don't reset the multiplier
+            stfs f0, 0x1960(r30) # else reset it to 1.0
+            Exit:
+                li r3, 0 # restore r3
 
         # Reset Custom ExtFighterData vars that are involved with PlayerThink_Shield/Damage
         patchInsertAsm "8006d8fc":
