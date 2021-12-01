@@ -90,6 +90,10 @@ template `bgt+`*(label: untyped): string =
     ppc:
         "bgt-" label
 
+template `blt+`*(label: untyped): string =
+    ppc:
+        "blt+" label
+
 template `blt-`*(label: untyped): string =
     ppc:
         "blt-" label
