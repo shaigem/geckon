@@ -1,6 +1,7 @@
 import geckon
 
-#[ - code: 0xF1
+#[
+    - code: 0xF1
   name: Hitbox Extension
   parameters:
   - name: Hitbox ID
@@ -30,8 +31,14 @@ import geckon
       - Regular
       - Current Facing Direction
       - Opposite Current Facing Direction
+  - name: Stretch
+    bitCount: 1
+    enums:
+      - false
+      - true
   - name: Padding
-    bitCount: 5 ]#
+    bitCount: 4
+]#
 
 type GameDataType* = enum
         Vanilla, A20XX, Mex
@@ -61,10 +68,10 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = VanillaGameData
+const CurrentGameData = A20XXGameData
 
 const
-    CodeVersion = "v1.0.0"
+    CodeVersion = "v1.1.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -349,6 +356,115 @@ defineCodes:
 
             OriginalExit:
                 lwz r31, 0x002C(r3)
+
+        # Hitbox_UpdateHitboxPositions Begin Patch
+        patchInsertAsm "8007ad2c":
+            # store ExtHit onto 0x20(sp) for use later on in the function
+            # r3 = ft/it data
+            # r4 = ft/it hit struct
+            # r31 = ft/it hit struct
+            lwz r0, 0(r31) # orig code line (changed from r4 to r31)
+            cmpwi r0, 0 # hitbox to update is inactive, don't bother getting ExtHit
+            beq Exit
+
+            stw r3, 0x1C(sp) # backup ft/it data
+            lwz r3, 0(r3) # gobj
+            mr r5, r4
+            mr r4, r3
+            %branchLink("0x801510d4") # getExtHit
+            cmplwi r3, 0
+            beq Exit
+            stw r3, 0x20(sp) # store Ext Hit into 0x20 of sp
+            lwz r3, 0x1C(sp) # restore ft/it data
+            Exit:
+                lwz r0, 0(r31)
+
+        # Hitbox_UpdateHitboxPositions Initial Hitbox Position Patch for Stretch
+        patchInsertAsm "8007adb0":
+            # on create hitbox position
+            # calculate initial hitbox position with offset of 0 if hitbox has the Stretch property
+            lwz r3, 0x20(sp) # getExtHit
+            cmplwi r3, 0
+            beq Exit
+            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
+            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            beq Exit 
+
+            li r0, 0
+            stw r0, 0x10(sp)
+            stw r0, 0x14(sp)
+            stw r0, 0x18(sp)
+
+            Exit:
+                lwz r3, 0x48(r31) # bone jobj
+
+        # Hitbox_UpdateHitboxPositions Moving Hitbox Position Patch for Stretch
+        patchInsertAsm "8007ae5c":
+            # on update hitbox position
+            # calculate moving hitbox position with offset of 0 if hitbox has the Stretch property
+            lwz r3, 0x20(sp) # getExtHit
+            cmplwi r3, 0
+            beq Exit
+            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
+            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            beq Exit
+
+            li r0, 0
+            stw r0, 0x10(sp)
+            stw r0, 0x14(sp)
+            stw r0, 0x18(sp)
+            Exit:
+                lwz r3, 0x48(r31) # bone jobj
+
+        # Hitbox_UpdateHitboxPositions Update Last Hitbox Position
+        patchInsertAsm "8007addc":
+            # if Stretch property is true, set the previous hitbox position as the current pos + offset
+            lwz r3, 0x20(sp) # getExtHit
+            cmplwi r3, 0
+            beq OriginalExit
+            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
+            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            beq OriginalExit
+            lwz r3, 0x10(r31)
+            lwz r4, 0x14(r31)
+            stw r3, 0x10(sp)
+            stw r4, 0x14(sp)
+            lwz r4, 0x18(r31)
+            stw r4, 0x18(sp)
+            lwz r3, 0x48(r31) # bone jobj
+            addi r4, sp, 16 # offset ptr
+            addi r5, r31, 0x58
+            %branchLink("0x8000B1CC")
+            %branch("0x8007ae6c")
+
+            OriginalExit:
+                stw r0, 0(r31)
+
+        # Hitbox_UpdateHitboxPositions Update Last Hitbox Position
+        patchInsertAsm "8007ae00":
+            # if Stretch property is true, set the previous hitbox position as the current pos + offset
+            lwz r4, 0x20(sp) # getExtHit
+            cmplwi r4, 0
+            beq OriginalExit
+            lbz r4, {ExtHitFlags1Offset}(r4) # get flags
+            %`rlwinm.`(r4, r4, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            beq OriginalExit
+            mr r6, r3 # backup r3
+            lwz r3, 0x10(r31)
+            lwz r4, 0x14(r31)
+            stw r3, 0x10(sp)
+            stw r4, 0x14(sp)
+            lwz r4, 0x18(r31)
+            stw r4, 0x18(sp)
+            lwz r3, 0x48(r31) # bone jobj
+            addi r4, sp, 16 # offset ptr
+            addi r5, r31, 0x58
+            %branchLink("0x8000B1CC")
+            mr r3, r6
+            %branch("0x8007ae04")
+
+            OriginalExit:
+                stw r0, 0x60(r31)
 
         # Use Weight of 100 for Knockback Calculation (ExtHit Flag)
         patchInsertAsm "8007a14c":
