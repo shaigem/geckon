@@ -33,6 +33,17 @@ defineCodes:
     createCode "Set Special Flags for Fighter Hitboxes":
         description "Enable special flags from item hitboxes"
         authors "sushie"
+#[         # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
+        patchInsertAsm "80078fe8":
+            # can hit fighters through shield if 0x40 is set to 0
+            lbz r0, 0x42(r23)
+            %`rlwinm.`(r0, r0, 26, 31, 31)
+            bne OriginalExit
+            SkipShield:
+                %branch("0x800790B4")
+            OriginalExit:
+                %`rlwinm.`(r0, r3, 28, 31, 31) # original code line
+ ]#
 
         # Reset Hit Players for Fighter Hitboxes
         patchInsertAsm "8006c9cc":
@@ -90,6 +101,30 @@ defineCodes:
             Exit:
                 %emptyBlock
 
+#[ TODO
+        # Patch for FastForwardSubactionPointer2
+        patchInsertAsm "80073574":
+            # fixes a crash with Kirby when using inhale with a custom subaction event
+            lwz r4, 0x8(r29)
+            cmpwi r28, 0x3C # Hitbox Extension Custom ID
+            beq AdvancePtrHitboxExt
+            cmpwi r28, 0x3D # Special Flags FtHit Custom ID
+            beq AdvancePtrSpecialFlags
+            b OriginalExit
+
+            AdvancePtrHitboxExt:
+                addi r4, r4, 8
+                b Exit
+            
+            AdvancePtrSpecialFlags:
+                addi r4, r4, 4
+
+            Exit:
+                stw r4, 0x8(r29)
+                %branch("0x80073588")
+            OriginalExit:
+                lwz r4, 0x8(r29) # original code line
+ ]#
         # Subaction Event Parsing (0xF5)
         patchInsertAsm "80073314":
             cmpwi r28, 0x3D

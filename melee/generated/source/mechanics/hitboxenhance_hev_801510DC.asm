@@ -73,11 +73,19 @@ rlwinm. r0, r3, 0, 26, 26
 bne FlippyForward
 rlwinm. r0, r3, 0, 25, 25
 bne StoreCalculatedDirection
-b Epilog
+b StoreWindboxFlag
 FlippyForward:
 fneg f0, f0
 StoreCalculatedDirection:
 stfs f0, 0x00001844(r30)
+StoreWindboxFlag:
+lbz r3, 16(r28)
+rlwinm. r0, r3, 0, 28, 28
+li r0, 0
+beq WindboxSet
+li r0, 1
+WindboxSet:
+stw r0, 9288(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)

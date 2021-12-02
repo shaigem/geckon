@@ -1,7 +1,6 @@
 import geckon
 
-#[
-    - code: 0xF1
+#[- code: 0xF1
   name: Hitbox Extension
   parameters:
   - name: Hitbox ID
@@ -36,9 +35,13 @@ import geckon
     enums:
       - false
       - true
+  - name: Windbox
+    bitCount: 1
+    enums:
+      - false
+      - true
   - name: Padding
-    bitCount: 4
-]#
+    bitCount: 3]#
 
 type GameDataType* = enum
         Vanilla, A20XX, Mex
@@ -202,13 +205,14 @@ const
     SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
     ShieldstunMultiplierOffset = HitstunModifierOffset + 0x4 # float
+    WindboxOffset = ShieldstunMultiplierOffset + 0x4 # int
 
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
 
 const 
-    ExtFighterDataSize = (ShieldstunMultiplierOffset + 0x4)
+    ExtFighterDataSize = (WindboxOffset + 0x4)
     ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4)
 
 const
@@ -262,17 +266,145 @@ defineCodes:
             OriginalExit:
                 lfs f1, -0x5B40(rtoc)
 
-#[         # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
-        patchInsertAsm "80078fe8":
-            # can hit fighters through shield if 0x40 is set to 0
-            lbz r0, 0x42(r23)
-            %`rlwinm.`(r0, r0, 26, 31, 31)
-            bne OriginalExit
-            SkipShield:
-                %branch("0x800790B4")
-            OriginalExit:
-                %`rlwinm.`(r0, r3, 28, 31, 31) # original code line
- ]#
+        # Damage_BranchToDamageHandler - Patch Custom Windbox Function
+        patchInsertAsm "8008edb0":
+            # r31 = ft/it gobj
+            # r29 = ft/it data
+
+            lwz r3, {calcOffsetFighterExtData(WindboxOffset)}(r29)
+            cmpwi r3, 1
+            bne UnhandledExit
+
+            lbz r0, 0x2222(r29)
+            %`rlwinm.`(r0, r0, 27, 31, 31) # 0x20 grab?
+            beq lbl_800C355C
+            b UnhandledExit
+
+            lbl_800C355C:
+                lbz r0, 0x2071(r29) # ???
+                rlwinm r0, r0, 28, 28, 31
+                cmpwi r0, 12
+                bge HandleWindbox
+                cmpwi r0, 9 # hanging off ledge??
+                bge UnhandledExit
+                b HandleWindbox
+
+            HandleWindbox:
+                mr r3, r31
+                bl Damage_Windbox
+
+            HandledExit:
+                # branches to the end of the Damage_BranchToDamageHandler, meaning that we handled the damage
+                %branch("0x8008f71c")
+
+            Damage_Windbox:
+                mflr r0
+                stw r0, 0x0004 (sp)
+                lis r0, 0x4330
+                stwu sp, -0x0040 (sp)
+                stfd f31, 0x0038 (sp)
+                stfd f30, 0x0030 (sp)
+                stfd f29, 0x0028 (sp)
+                stw r31, 0x0024 (sp)
+#                lwz r4, -0x514C (r13)
+                lwz r5, 0x002C (r3)
+#                lwz r4, 0x0648 (r4) # length of cape freeze frames? loads 8
+                mr r31, r5
+#                stw r4, 0x18F4 (r5)
+ #               lwz r4, 0x18F4 (r5)
+  #              lfd f2, -0x6D10 (rtoc)
+  #              xoris r4, r4, 0x8000
+                # need to set freeze frames to 1 or else damage of 0 freezes the player forever
+                lfs f0, -0x7790(rtoc) # 1.0
+                stfs f0, 0x1954(r5)
+#                lfs f0, 0x1954(r5) # freeze frames
+  #              stw r4, 0x001C (sp)
+  #              stw r0, 0x0018 (sp)
+  #              lfd f1, 0x0018 (sp)
+  #              fsubs f1,f1,f2
+  #              fcmpo cr0,f1,f0
+                # ble lbl_800C3608
+                # stw r4, 0x001C (sp)
+                # stw r0, 0x0018 (sp)
+                # lfd f0, 0x0018 (sp)
+                # fsubs f0,f0,f2
+                # stfs f0, 0x1954 (r5)
+#                lbl_800C3608:
+                %branchLink("0x8006D044") # ?
+#                lwz r0, 0x00E0(r31) # air state
+#                cmpwi r0, 1 # in the air
+#                bne lbl_800C3634 # if not in the air
+                # this part gets called when defender is in the air...
+#                lwz r3, -0x514C (r13)
+#                lfs f31, 0x064C (r3) # loads 2.0
+#                b CheckAttackAngle
+                lbl_800C3634:
+                    lwz r3, -0x514C(r13)
+                    lfs f0, 0x100(r3) # 0.03
+                    lfs f1, 0x1850(r31) # forced applied
+                    fmuls f31, f1, f0 # forced applied * 0.03
+                    
+#                    lfs f31, 0x0650 (r3) # 2.25
+                    CheckAttackAngle:
+                        mr r3, r31
+                        lfs f1, 0x1850(r31) # forced applied
+                        %branchLink("0x8008D7F0") # CheckAttackAngle
+                fmr f30, f1 # save AttackRadians into f30
+                %branchLink("0x80326240") # cos
+                fmuls f29, f31, f1 # f29 = (forced Applied * 0.03) * result of cos
+                fmr f1, f30 # put AttackRadians back into f1
+                %branchLink("0x803263D4") # sin
+                lwz r0, 0x00E0 (r31) # check air state
+                fmuls f2,f31,f1 # (force_applied * 0.03) * result of sin
+                cmpwi r0, 1 # if in the air
+                bne StoreVelocityGrounded
+                lfs f0, 0x1844(r31) # dmg_direction
+                mr r3, r31
+#                stfs f0, 0x2C(r31) # store to facing direction (TEST ONLY)
+                fneg f1, f29 # -((forced Applied * 0.03) * result of cos)
+                fmuls f1, f1, f0 # -((forced Applied * 0.03) * result of cos) * direction
+                %branchLink("0x8008DC0C") # StoreVelocity/CheckForKBStack
+                lfs f0, -0x6D08(rtoc)
+                stfs f0, 0x00F0(r31)
+                b StoreSlotLastDamaged
+                StoreVelocityGrounded:
+                    # called when hit on the GROUND
+                    fneg f1, f29 # -((forced Applied * 0.03) * result of cos)
+#                    lfs f0, 0x2C(r31) # direction facing
+                    lfs f0, 0x1844 (r31) # dmg_direction
+                    fmuls f0, f1, f0
+                    fmr f1, f0
+                    stfs f1, 0xF0(r31)
+                    mr r3, r31
+                    # TODO load f2 = 0.0 right?
+                    lfs f2, -0x6D08 (rtoc)
+
+                    
+#[                     fmuls f0,f29,f0 # (forced Applied * 0.03) * result of cos * direction
+                    stfs f0, 0x00F0 (r31) # store above into 0xF0
+                    lfs f0, 0x0844 (r31) # -0?
+                    lfs f2, 0x00F0 (r31) # from above 0xF0
+                    fneg f0,f0
+                    lfs f1, 0x0848 (r31) # 1.0
+                    fmuls f1,f1,f2 # 1.0 * 0xF0
+                    fmuls f2,f0,f2 ]#
+                    %branchLink("0x8008DC0C") # StoreVelocity/CheckForKBStack
+                StoreSlotLastDamaged:
+                    mr r3, r31
+                    # TODO probably not correct behavior
+                    %branchLink("0x800804FC") # SlotLastDamaged Make Self If On Ground
+                lwz r0, 0x0044 (sp)
+                lfd f31, 0x0038 (sp)
+                lfd f30, 0x0030 (sp)
+                lfd f29, 0x0028 (sp)
+                lwz r31, 0x0024 (sp)
+                addi sp, sp, 64
+                mtlr r0
+                blr
+
+            UnhandledExit:
+                mr r3, r31
+
         # Hitlag multiplier mechanics patch for fighters
         patchInsertAsm "8007db1c":
             # fix for fighters only...
@@ -664,12 +796,21 @@ defineCodes:
                 bne FlippyForward
                 %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
                 bne StoreCalculatedDirection
-                b Epilog
+                b StoreWindboxFlag
                 FlippyForward:
                     fneg f0, f0
                 StoreCalculatedDirection:
                     stfs f0, 0x1844(r30)
-
+            
+            StoreWindboxFlag:
+                lbz r3, {ExtHitFlags1Offset}(r28)
+                %`rlwinm.`(r0, r3, 0, 28, 28) # 0x8 for windbox flag
+                li r0, 0
+                beq WindboxSet
+                li r0, 1
+                WindboxSet:
+                    stw r0, {calcOffsetFighterExtData(WindboxOffset)}(r30)
+                
             Epilog:
                 %restore
                 blr
@@ -889,6 +1030,7 @@ defineCodes:
             # r3 = 0
             # r30 = fighter data
             # reset vars to 0
+            stw r3, {calcOffsetFighterExtData(WindboxOffset)}(r30)
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
             stfs f1, 0x1838(r30) # original code line
             # reset vars to 1.0
@@ -1012,6 +1154,30 @@ defineCodes:
 
             OriginalExit:
                 fmr f3, f1
+
+        # Patch for FastForwardSubactionPointer2
+        # TODO seperate the Special Flags FtHit Custom ID
+        patchInsertAsm "80073574":
+            # fixes a crash with Kirby when using inhale with a custom subaction event
+            lwz r4, 0x8(r29)
+            cmpwi r28, 0x3C # Hitbox Extension Custom ID
+            beq AdvancePtrHitboxExt
+            cmpwi r28, 0x3D # Special Flags FtHit Custom ID
+            beq AdvancePtrSpecialFlags
+            b OriginalExit
+
+            AdvancePtrHitboxExt:
+                addi r4, r4, 8
+                b Exit
+            
+            AdvancePtrSpecialFlags:
+                addi r4, r4, 4
+
+            Exit:
+                stw r4, 0x8(r29)
+                %branch("0x80073588")
+            OriginalExit:
+                lwz r4, 0x8(r29) # original code line
 
         # Custom Fighter Subaction Event
         patchInsertAsm "80073318":
