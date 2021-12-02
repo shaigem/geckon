@@ -74,7 +74,7 @@ const
 const CurrentGameData = A20XXGameData
 
 const
-    CodeVersion = "v1.1.1"
+    CodeVersion = "v1.2.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -266,6 +266,14 @@ defineCodes:
             OriginalExit:
                 lfs f1, -0x5B40(rtoc)
 
+        # Patch Damage_AddHitlag - No Model Shifting On Hitlag Frames <= 1
+        patchInsertAsm "80090618":
+            cmpwi r3, 1 # if calculated hitlag frames <= 1, don't bother shifting model frames
+            bgt OriginalExit
+            li r3, 0
+            OriginalExit: 
+                sth r3, 0x18FA(r31) # orig line, model shift frames
+
         # Damage_BranchToDamageHandler - Patch Custom Windbox Function
         patchInsertAsm "8008edb0":
             # r31 = ft/it gobj
@@ -278,15 +286,17 @@ defineCodes:
             lbz r0, 0x2222(r29)
             %`rlwinm.`(r0, r0, 27, 31, 31) # 0x20 grab?
             beq lbl_800C355C
-            b UnhandledExit
+            b HandledExit
 
             lbl_800C355C:
                 lbz r0, 0x2071(r29) # ???
                 rlwinm r0, r0, 28, 28, 31
                 cmpwi r0, 12
                 bge HandleWindbox
+                cmpwi r0, 10 # grab?
+                beq HandleWindbox 
                 cmpwi r0, 9 # hanging off ledge??
-                bge UnhandledExit
+                bge HandledExit
                 b HandleWindbox
 
             HandleWindbox:
@@ -306,45 +316,17 @@ defineCodes:
                 stfd f30, 0x0030 (sp)
                 stfd f29, 0x0028 (sp)
                 stw r31, 0x0024 (sp)
-#                lwz r4, -0x514C (r13)
                 lwz r5, 0x002C (r3)
-#                lwz r4, 0x0648 (r4) # length of cape freeze frames? loads 8
                 mr r31, r5
-#                stw r4, 0x18F4 (r5)
- #               lwz r4, 0x18F4 (r5)
-  #              lfd f2, -0x6D10 (rtoc)
-  #              xoris r4, r4, 0x8000
                 # need to set freeze frames to 1 or else damage of 0 freezes the player forever
                 lfs f0, -0x7790(rtoc) # 1.0
                 stfs f0, 0x1954(r5)
-#                lfs f0, 0x1954(r5) # freeze frames
-  #              stw r4, 0x001C (sp)
-  #              stw r0, 0x0018 (sp)
-  #              lfd f1, 0x0018 (sp)
-  #              fsubs f1,f1,f2
-  #              fcmpo cr0,f1,f0
-                # ble lbl_800C3608
-                # stw r4, 0x001C (sp)
-                # stw r0, 0x0018 (sp)
-                # lfd f0, 0x0018 (sp)
-                # fsubs f0,f0,f2
-                # stfs f0, 0x1954 (r5)
-#                lbl_800C3608:
                 %branchLink("0x8006D044") # ?
-#                lwz r0, 0x00E0(r31) # air state
-#                cmpwi r0, 1 # in the air
-#                bne lbl_800C3634 # if not in the air
-                # this part gets called when defender is in the air...
-#                lwz r3, -0x514C (r13)
-#                lfs f31, 0x064C (r3) # loads 2.0
-#                b CheckAttackAngle
                 lbl_800C3634:
                     lwz r3, -0x514C(r13)
                     lfs f0, 0x100(r3) # 0.03
                     lfs f1, 0x1850(r31) # forced applied
                     fmuls f31, f1, f0 # forced applied * 0.03
-                    
-#                    lfs f31, 0x0650 (r3) # 2.25
                     CheckAttackAngle:
                         mr r3, r31
                         lfs f1, 0x1850(r31) # forced applied
@@ -360,7 +342,6 @@ defineCodes:
                 bne StoreVelocityGrounded
                 lfs f0, 0x1844(r31) # dmg_direction
                 mr r3, r31
-#                stfs f0, 0x2C(r31) # store to facing direction (TEST ONLY)
                 fneg f1, f29 # -((forced Applied * 0.03) * result of cos)
                 fmuls f1, f1, f0 # -((forced Applied * 0.03) * result of cos) * direction
                 %branchLink("0x8008DC0C") # StoreVelocity/CheckForKBStack
@@ -370,37 +351,26 @@ defineCodes:
                 StoreVelocityGrounded:
                     # called when hit on the GROUND
                     fneg f1, f29 # -((forced Applied * 0.03) * result of cos)
-#                    lfs f0, 0x2C(r31) # direction facing
-                    lfs f0, 0x1844 (r31) # dmg_direction
+                    lfs f0, 0x1844(r31) # dmg_direction
                     fmuls f0, f1, f0
                     fmr f1, f0
                     stfs f1, 0xF0(r31)
                     mr r3, r31
-                    # TODO load f2 = 0.0 right?
-                    lfs f2, -0x6D08 (rtoc)
-
-                    
-#[                     fmuls f0,f29,f0 # (forced Applied * 0.03) * result of cos * direction
-                    stfs f0, 0x00F0 (r31) # store above into 0xF0
-                    lfs f0, 0x0844 (r31) # -0?
-                    lfs f2, 0x00F0 (r31) # from above 0xF0
+                    lfs f0, 0x0844(r31) # -0?
                     fneg f0,f0
-                    lfs f1, 0x0848 (r31) # 1.0
-                    fmuls f1,f1,f2 # 1.0 * 0xF0
-                    fmuls f2,f0,f2 ]#
+                    fmuls f2, f0, f1
                     %branchLink("0x8008DC0C") # StoreVelocity/CheckForKBStack
                 StoreSlotLastDamaged:
-                    mr r3, r31
-                    # TODO probably not correct behavior
-                    %branchLink("0x800804FC") # SlotLastDamaged Make Self If On Ground
-                lwz r0, 0x0044 (sp)
-                lfd f31, 0x0038 (sp)
-                lfd f30, 0x0030 (sp)
-                lfd f29, 0x0028 (sp)
-                lwz r31, 0x0024 (sp)
-                addi sp, sp, 64
-                mtlr r0
-                blr
+#                    mr r3, r31
+#                    %branchLink("0x800804FC") # SlotLastDamaged Make Self If On Ground
+                    lwz r0, 0x0044 (sp)
+                    lfd f31, 0x0038 (sp)
+                    lfd f30, 0x0030 (sp)
+                    lfd f29, 0x0028 (sp)
+                    lwz r31, 0x0024 (sp)
+                    addi sp, sp, 64
+                    mtlr r0
+                    blr
 
             UnhandledExit:
                 mr r3, r31
@@ -1156,28 +1126,16 @@ defineCodes:
                 fmr f3, f1
 
         # Patch for FastForwardSubactionPointer2
-        # TODO seperate the Special Flags FtHit Custom ID
         patchInsertAsm "80073574":
-            # fixes a crash with Kirby when using inhale with a custom subaction event
-            lwz r4, 0x8(r29)
+           # fixes a crash with Kirby when using inhale with a custom subaction event
+            lwz r4, 0x8(r29) # orig code line, current action ptr
             cmpwi r28, 0x3C # Hitbox Extension Custom ID
-            beq AdvancePtrHitboxExt
-            cmpwi r28, 0x3D # Special Flags FtHit Custom ID
-            beq AdvancePtrSpecialFlags
-            b OriginalExit
-
-            AdvancePtrHitboxExt:
-                addi r4, r4, 8
-                b Exit
-            
-            AdvancePtrSpecialFlags:
-                addi r4, r4, 4
-
-            Exit:
-                stw r4, 0x8(r29)
-                %branch("0x80073588")
+            bne OriginalExit
+            addi r4, r4, 8
+            stw r4, 0x8(r29)
+            %branch("0x80073588")
             OriginalExit:
-                lwz r4, 0x8(r29) # original code line
+                %emptyBlock
 
         # Custom Fighter Subaction Event
         patchInsertAsm "80073318":

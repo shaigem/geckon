@@ -29,6 +29,8 @@
 
 import geckon
 
+const SubactionDataLength = 0x4
+
 defineCodes:
     createCode "Set Special Flags for Fighter Hitboxes":
         description "Enable special flags from item hitboxes"
@@ -101,30 +103,18 @@ defineCodes:
             Exit:
                 %emptyBlock
 
-#[ TODO
         # Patch for FastForwardSubactionPointer2
-        patchInsertAsm "80073574":
-            # fixes a crash with Kirby when using inhale with a custom subaction event
-            lwz r4, 0x8(r29)
-            cmpwi r28, 0x3C # Hitbox Extension Custom ID
-            beq AdvancePtrHitboxExt
-            cmpwi r28, 0x3D # Special Flags FtHit Custom ID
-            beq AdvancePtrSpecialFlags
-            b OriginalExit
-
-            AdvancePtrHitboxExt:
-                addi r4, r4, 8
-                b Exit
-            
-            AdvancePtrSpecialFlags:
-                addi r4, r4, 4
-
-            Exit:
-                stw r4, 0x8(r29)
-                %branch("0x80073588")
+        patchInsertAsm "80073578":
+           # fixes a crash with Kirby when using inhale with a custom subaction event
+           # r4 = current subaction ptr
+            cmpwi r28, 0x3D # Hitbox Extension Custom ID
+            bne OriginalExit
+            addi r4, r4, {SubactionDataLength}
+            stw r4, 0x8(r29)
+            %branch("0x80073588")
             OriginalExit:
-                lwz r4, 0x8(r29) # original code line
- ]#
+                lbz r0, -0xA(r3)
+
         # Subaction Event Parsing (0xF5)
         patchInsertAsm "80073314":
             cmpwi r28, 0x3D
@@ -164,7 +154,7 @@ defineCodes:
             rlwimi r5, r6, 28, 30, 30 # 0x20
             stb r5, 0x41(r4)
             Exit:
-                addi r3, r3, 4
+                addi r3, r3, {SubactionDataLength}
                 stw r3, 0x8(r29)
 
             %branch("0x8007332c")

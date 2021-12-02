@@ -4,14 +4,16 @@ bne UnhandledExit
 lbz r0, 0x00002222(r29)
 rlwinm. r0, r0, 27, 31, 31
 beq lbl_800C355C
-b UnhandledExit
+b HandledExit
 lbl_800C355C:
 lbz r0, 0x00002071(r29)
 rlwinm r0, r0, 28, 28, 31
 cmpwi r0, 12
 bge HandleWindbox
+cmpwi r0, 10
+beq HandleWindbox
 cmpwi r0, 9
-bge UnhandledExit
+bge HandledExit
 b HandleWindbox
 HandleWindbox:
 mr r3, r31
@@ -78,12 +80,14 @@ stfs f0, 0x000000F0(r31)
 b StoreSlotLastDamaged
 StoreVelocityGrounded:
 fneg f1, f29
-lfs f0, 0x00001844 (r31)
+lfs f0, 0x00001844(r31)
 fmuls f0, f1, f0
 fmr f1, f0
 stfs f1, 0x000000F0(r31)
 mr r3, r31
-lfs f2, 0xFFFF92F8 (rtoc)
+lfs f0, 0x00000844(r31)
+fneg f0, f0
+fmuls f2, f0, f1
 lis r12, 0x8008DC0C @h
 ori r12, r12, 0x8008DC0C @l
 mtctr r12
