@@ -93,11 +93,6 @@ ori r12, r12, 0x8008DC0C @l
 mtctr r12
 bctrl
 StoreSlotLastDamaged:
-mr r3, r31
-lis r12, 0x800804FC @h
-ori r12, r12, 0x800804FC @l
-mtctr r12
-bctrl
 lwz r0, 0x00000044 (sp)
 lfd f31, 0x00000038 (sp)
 lfd f30, 0x00000030 (sp)

@@ -22,6 +22,10 @@ lbz r5, 0x00000041(r4)
 lbz r6, 0x00000003(r3)
 rlwimi r5, r6, 28, 30, 30
 stb r5, 0x00000041(r4)
+lbz r5, 0x00000042(r4)
+lbz r6, 0x00000003(r3)
+rlwimi r5, r6, 4, 25, 25
+stb r5, 0x00000042(r4)
 Exit:
 addi r3, r3, 4
 stw r3, 0x00000008(r29)

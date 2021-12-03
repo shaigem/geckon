@@ -5,7 +5,7 @@ import geckon
   parameters:
   - name: Hitbox ID
     bitCount: 3
-  - name: Apply To All Previous Hitboxes
+  - name: Apply To All Active Hitbox IDs
     bitCount: 1
     enums:
     - false
@@ -35,7 +35,7 @@ import geckon
     enums:
       - false
       - true
-  - name: Windbox
+  - name: Flinchless
     bitCount: 1
     enums:
       - false

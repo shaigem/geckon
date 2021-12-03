@@ -1,5 +1,4 @@
-#[  
-- code: 0xF5
+#[- code: 0xF5
   name: Set Special Hitbox Flags (Fighters)
   parameters:
   - name: Hitbox ID
@@ -24,8 +23,14 @@
     - false
     - true
   - name: Padding
-    bitCount: 5
-]#
+    bitCount: 2
+  - name: Blockability
+    bitCount: 1
+    enums:
+    - false
+    - true
+  - name: Padding
+    bitCount: 2]#
 
 import geckon
 
@@ -35,17 +40,17 @@ defineCodes:
     createCode "Set Special Flags for Fighter Hitboxes":
         description "Enable special flags from item hitboxes"
         authors "sushie"
-#[         # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
+
+        # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
         patchInsertAsm "80078fe8":
             # can hit fighters through shield if 0x40 is set to 0
             lbz r0, 0x42(r23)
-            %`rlwinm.`(r0, r0, 26, 31, 31)
-            bne OriginalExit
-            SkipShield:
+            %`rlwinm.`(r0, r0, 26, 31, 31) # 0x40
+            bne OriginalExit # can shield = true
+            SkipShield: # else, skip shield check
                 %branch("0x800790B4")
             OriginalExit:
                 %`rlwinm.`(r0, r3, 28, 31, 31) # original code line
- ]#
 
         # Reset Hit Players for Fighter Hitboxes
         patchInsertAsm "8006c9cc":
@@ -153,6 +158,11 @@ defineCodes:
             lbz r6, 0x3(r3)
             rlwimi r5, r6, 28, 30, 30 # 0x20
             stb r5, 0x41(r4)
+            # blockability
+            lbz r5, 0x42(r4)
+            lbz r6, 0x3(r3)
+            rlwimi r5, r6, 4, 25, 25 # 0x4
+            stb r5, 0x42(r4)
             Exit:
                 addi r3, r3, {SubactionDataLength}
                 stw r3, 0x8(r29)
