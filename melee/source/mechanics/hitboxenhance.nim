@@ -375,6 +375,10 @@ defineCodes:
             UnhandledExit:
                 mr r3, r31
 
+        #[Notes on hitlag on invincibility
+            80077438 - this is where it spawns the gfx when you hit an invincible opponent
+            - good spot for adding hitlag multipliers if I decided to do it for invincible hits ]#
+
         # Hitlag multiplier mechanics patch for fighters
         patchInsertAsm "8007db1c":
             # fix for fighters only...

@@ -29,8 +29,13 @@
     enums:
     - false
     - true
+  - name: Only Hit Front
+    bitCount: 1
+    enums:
+    - false
+    - true
   - name: Padding
-    bitCount: 2]#
+    bitCount: 1]#
 
 import geckon
 
@@ -41,12 +46,28 @@ defineCodes:
         description "Enable special flags from item hitboxes"
         authors "sushie"
 
+        # Enable bit 0x20 - Hit Front flag of ItHit to be usable for Fighter Hitboxes
+        patchInsertAsm "80078ea0":
+            lbz r0, 0x42(r23)
+            %`rlwinm.`(r0, r0, 27, 31, 31) # 0x20
+            beq OriginalExit # if hit front != true, exit
+            # else, check directions
+            lfs f1, 0x2C(r28) # defender facing direction
+            lfs f0, 0x2C(r24) # source facing direction
+            fcmpu cr0, f1, f0
+            beq CanHit
+            b OriginalExit
+            CanHit:
+              %branch("0x80079228")
+            OriginalExit:
+                lbz r0, 0x134(r23)
+
         # Enable bit 0x40 - Blockability (Can Shield) flag of ItHit to be usable for Fighter Hitboxes
         patchInsertAsm "80078fe8":
             # can hit fighters through shield if 0x40 is set to 0
             lbz r0, 0x42(r23)
             %`rlwinm.`(r0, r0, 26, 31, 31) # 0x40
-            bne OriginalExit # can shield = true
+            bne OriginalExit # can shield == true
             SkipShield: # else, skip shield check
                 %branch("0x800790B4")
             OriginalExit:
@@ -162,6 +183,11 @@ defineCodes:
             lbz r5, 0x42(r4)
             lbz r6, 0x3(r3)
             rlwimi r5, r6, 4, 25, 25 # 0x4
+            stb r5, 0x42(r4)
+            # hit facing only
+            lbz r5, 0x42(r4)
+            lbz r6, 0x3(r3)
+            rlwimi r5, r6, 4, 26, 26 # 0x2
             stb r5, 0x42(r4)
             Exit:
                 addi r3, r3, {SubactionDataLength}
