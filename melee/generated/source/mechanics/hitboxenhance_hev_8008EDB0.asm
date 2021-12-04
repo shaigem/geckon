@@ -1,6 +1,6 @@
-lwz r3, 9288(r29)
-cmpwi r3, 1
-bne UnhandledExit
+lbz r3, 9336(r29)
+rlwinm. r3, r3, 0, 1
+beq UnhandledExit
 lbz r0, 0x00002222(r29)
 rlwinm. r0, r0, 27, 31, 31
 beq lbl_800C355C
@@ -93,6 +93,8 @@ ori r12, r12, 0x8008DC0C @l
 mtctr r12
 bctrl
 StoreSlotLastDamaged:
+li r3, 0
+stw r3, 0x000018AC(r31)
 lwz r0, 0x00000044 (sp)
 lfd f31, 0x00000038 (sp)
 lfd f30, 0x00000030 (sp)

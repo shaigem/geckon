@@ -71,10 +71,10 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = A20XXGameData
+const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.2.0"
+    CodeVersion = "v1.3.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -205,19 +205,22 @@ const
     SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
     ShieldstunMultiplierOffset = HitstunModifierOffset + 0x4 # float
-    WindboxOffset = ShieldstunMultiplierOffset + 0x4 # int
 
+    Flags1Offset = ShieldstunMultiplierOffset + 0x4 # byte
+    FlinchlessFlag = 0x1
+    TempGravityFallSpeedFlag = 0x2
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
 
 const 
-    ExtFighterDataSize = (WindboxOffset + 0x4)
+    ExtFighterDataSize = (Flags1Offset + 0x4)
     ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4)
 
 const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
+    CustomFuncResetGravityAndFallSpeed = "0x801510e8"
 
 proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
 proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
@@ -279,9 +282,9 @@ defineCodes:
             # r31 = ft/it gobj
             # r29 = ft/it data
 
-            lwz r3, {calcOffsetFighterExtData(WindboxOffset)}(r29)
-            cmpwi r3, 1
-            bne UnhandledExit
+            lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r29)
+            %`rlwinm.`(r3, r3, 0, FlinchlessFlag)
+            beq UnhandledExit
 
             lbz r0, 0x2222(r29)
             %`rlwinm.`(r0, r0, 27, 31, 31) # 0x20 grab?
@@ -361,6 +364,8 @@ defineCodes:
                     fmuls f2, f0, f1
                     %branchLink("0x8008DC0C") # StoreVelocity/CheckForKBStack
                 StoreSlotLastDamaged:
+                    li r3, 0
+                    stw r3, 0x18AC(r31) # store time_last_hit = 0
 #                    mr r3, r31
 #                    %branchLink("0x800804FC") # SlotLastDamaged Make Self If On Ground
                     lwz r0, 0x0044 (sp)
@@ -571,12 +576,118 @@ defineCodes:
 
             OriginalExit:
                 stw r0, 0x60(r31)
+        
+        # Function for Resetting Gravity and Fall Speed
+        patchInsertAsm "801510e8":
+            cmpwi r4, 343
+            %`beq-`(OriginalExit)
+            # inputs
+            # r3 = fighter data
+
+            stwu sp, -0x20(sp)
+            stw r31, 0x1C(sp)
+            # r31 = fighter data
+            mr r31, r3
+            # reset gravity and fall speed
+            lwz r3, 0x10C(r3) # FtData
+            lwz r3, 0(r3) # ptr to common attributes
+            # reset gravity
+            lfs f0, 0x5C(r3)
+            stfs f0, 0x16C(r31)
+            # reset fall speed
+            lfs f0, 0x60(r3)
+            stfs f0, 0x170(r31)
+
+            # now restore other modifiers to gravity + fall speed
+
+            # item-related modifiers like bunny hood
+            lwz r0, 0x197C(r31)
+            cmplwi r0, 0
+            beq Idk1
+            lwz r3, -0x5180(r13)
+            
+            lfs f1, 0x016C(r31)
+            lfs f0, 0x0020(r3)
+            fmuls f0, f1, f0
+            stfs f0, 0x016C(r31)
+
+            lfs f1, 0x0170(r31)
+            lfs f0, 0x0024(r3)
+            fmuls f0, f1, f0
+            stfs f0, 0x0170(r31)
+
+            Idk1:
+                lbz r0, 0x2223(r31)
+                %`rlwinm.`(r0, r0, 0, 31, 31) # 0x1
+                beq Idk2
+                lwz r3, -0x5184(r13)
+
+                lfs f1, 0x016C(r31)
+                lfs f0, 0xC(r3)
+                fmuls f0, f1, f0
+                stfs f0, 0x016C(r31)
+
+                lfs f1, 0x0170(r31)
+                lfs f0, 0x10(r3)
+                fmuls f0, f1, f0
+                stfs f0, 0x0170(r31)
+
+            Idk2:
+                lbz r0, 0x2229(r31)
+                %`rlwinm.`(r0, r0, 26, 31, 31) # 0x40
+                beq Epilog
+                lwz r3, -0x5188(r13)
+
+                lfs f1, 0x016C(r31)
+                lfs f0, 0(r3)
+                fmuls f0, f1, f0
+                stfs f0, 0x016C(r31)
+
+            Epilog:
+                lwz r31, 0x1C(sp)
+                addi sp, sp, 0x20
+                blr
+
+            OriginalExit:
+                lwz r30, 0x4(r5)
+
+        # Player_ReapplyAttributes Reset Variables
+        patchInsertAsm "800d108c":
+            # r30 = fighter data
+            li r3, 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lwz r3, 0x10C(r30) # original code line
+
+        # Reset Temp Gravity & Fall Speed At 10 Frames After Launch
+        patchInsertAsm "8006ab10":
+            # r31 = fighter data
+            lwz r3, 0x18AC(r31) # time_since_hit in frames
+            cmpwi r3, 10
+            blt Exit
+
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            %`rlwinm.`(r0, r0, 0, TempGravityFallSpeedFlag)
+            beq Exit
+
+            mr r3, r31
+            %branchLink(CustomFuncResetGravityAndFallSpeed)
+            # reset flag to 0
+            li r3, 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            lwz r3, 0x18AC(r31)
+            Exit:
+                %emptyBlock
 
         # Use Weight of 100 for Knockback Calculation (ExtHit Flag)
         patchInsertAsm "8007a14c":
             # r25 = defender data
             # r17 = hit struct?
             # r15 = attacker data
+            # r27 = current char attr
             lwz r3, 0(r15)
             lwz r4, 0(r25)
             mr r5, r17 # hit struct
@@ -588,12 +699,49 @@ defineCodes:
 
             lbz r4, {ExtHitFlags1Offset}(r3)
             %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
-            beq Exit
+            beq NoSetWeight
 
             UseSetWeight:
                 # if the 'Set Weight' flag is set, use a weight of 100 for the defender
                 lwz r3, -0x514C(r13)
                 lfs f4, 0x10C(r3) # uses same weight value from throws (100)
+                # also set the gravity and fall speed to Mario's values
+                bl Constants
+                mflr r3
+                # store gravity
+                lfs f0, 0(r3)
+                stfs f0, 0x5C(r27)
+                # store fall speed
+                lfs f0, 4(r3)
+                stfs f0, 0x60(r27)
+                # set our temp gravity and fall speed flag to true
+                li r3, 1
+                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                b Exit
+            
+            NoSetWeight:
+                # reset gravity and fall speed only if the temp flag is true
+                lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
+                beq Exit
+                # reset flag to 0
+                li r3, 0
+                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+
+                fmr f3, f1 # backup f1
+                mr r3, r25
+                %branchLink(CustomFuncResetGravityAndFallSpeed)
+                fmr f1, f3 # restore f1
+                b Exit
+
+            Constants:
+                blrl
+                %`.float`(0.095) # mario's gravity
+                %`.float`(1.7) # mario's fall speed
 
             Exit:
                 %emptyBlock
@@ -614,13 +762,45 @@ defineCodes:
 
             lbz r4, {ExtHitFlags1Offset}(r3)
             %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
-            beq Exit
+            beq NoSetWeight
 
             UseSetWeight:
                 # if the 'Set Weight' flag is set, use a weight of 100 for the defender
                 lwz r3, -0x514C(r13)
                 lfs f22, 0x10C(r3) # uses same weight value from throws (100)
+                # also set the gravity and fall speed to Mario's values
+                bl Constants
+                mflr r3
+                # store gravity
+                lfs f0, 0(r3)
+                stfs f0, 0x5C(r27)
+                # store fall speed
+                lfs f0, 4(r3)
+                stfs f0, 0x60(r27)
+                # set our temp gravity and fall speed flag to true
+                li r3, 1
+                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                b Exit
+            
+            NoSetWeight:
+                # reset gravity and fall speed only if the temp flag is true
+                lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
+                beq Exit
+                li r3, 0
+                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                mr r3, r25
+                %branchLink(CustomFuncResetGravityAndFallSpeed)
+                b Exit
 
+            Constants:
+                blrl
+                %`.float`(0.095) # mario's gravity
+                %`.float`(1.7) # mario's fall speed
             Exit:
                 %emptyBlock
 
@@ -779,11 +959,13 @@ defineCodes:
             StoreWindboxFlag:
                 lbz r3, {ExtHitFlags1Offset}(r28)
                 %`rlwinm.`(r0, r3, 0, 28, 28) # 0x8 for windbox flag
-                li r0, 0
+                li r3, 0
                 beq WindboxSet
-                li r0, 1
+                li r3, 1
                 WindboxSet:
-                    stw r0, {calcOffsetFighterExtData(WindboxOffset)}(r30)
+                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    rlwimi r0, r3, 0, {FlinchlessFlag}
+                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                 
             Epilog:
                 %restore
@@ -1004,7 +1186,12 @@ defineCodes:
             # r3 = 0
             # r30 = fighter data
             # reset vars to 0
-            stw r3, {calcOffsetFighterExtData(WindboxOffset)}(r30)
+
+            # reset flinchless flag to 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            rlwimi r0, r3, 0, {FlinchlessFlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
             stfs f1, 0x1838(r30) # original code line
             # reset vars to 1.0

@@ -131,6 +131,9 @@ proc `fmuls.`*(dstF, fa, fs: Register): string =
 proc `rlwinm.`*(ra, rs: Register, sh, mb, me: Natural): string =
     "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $mb & ", " & $me
 
+proc `rlwinm.`*(ra, rs: Register, sh, m: Natural): string =
+    "rlwinm. " & $ra & ", " & $rs & ", " & $sh & ", " & $m
+
 proc `.float`*(f: float32): string =
     ".float " & $f
 
