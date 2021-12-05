@@ -74,7 +74,7 @@ const
 const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.3.0"
+    CodeVersion = "v1.3.1"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -322,9 +322,16 @@ defineCodes:
                 lwz r5, 0x002C (r3)
                 mr r31, r5
                 # need to set freeze frames to 1 or else damage of 0 freezes the player forever
+                # also reset hitlag frozen to 1 if damage applied is 0
+                lwz r0, 0x186C(r5) # applied damaged
+                cmpwi r0, 0
+                bne BranchToUnk
                 lfs f0, -0x7790(rtoc) # 1.0
-                stfs f0, 0x1954(r5)
-                %branchLink("0x8006D044") # ?
+                stfs f0, 0x1954(r5) # set freeze frames to 1.0
+                # reset hitlag frames to 1.0
+                stfs f0, 0x195C(r5)
+                BranchToUnk:
+                    %branchLink("0x8006D044") # ?
                 lbl_800C3634:
                     lwz r3, -0x514C(r13)
                     lfs f0, 0x100(r3) # 0.03
