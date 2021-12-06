@@ -19,12 +19,12 @@ bne Epilog
 SetupItemVars:
 li r5, 1492
 li r6, 316
-li r7, 4048
+li r7, 4044
 b CalculateExtHitOffset
 SetupFighterVars:
 li r5, 2324
 li r6, 312
-li r7, 9244
+li r7, 9196
 CalculateExtHitOffset:
 mr r3, r31
 mr r4, r29
@@ -62,10 +62,10 @@ cmpwi r24, 1
 bne Epilog
 StoreHitstunModifier:
 lfs f0, 12(r28)
-stfs f0, 9328(r30)
+stfs f0, 9280(r30)
 StoreSDIMultiplier:
 lfs f0, 4(r28)
-stfs f0, 9324(r30)
+stfs f0, 9276(r30)
 CalculateFlippyDirection:
 lbz r3, 16(r28)
 lfs f0, 0x0000002C(r31)
@@ -85,9 +85,9 @@ li r3, 0
 beq WindboxSet
 li r3, 1
 WindboxSet:
-lbz r0, 9336(r30)
+lbz r0, 9288(r30)
 rlwimi r0, r3, 0, 1
-stb r0, 9336(r30)
+stb r0, 9288(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
@@ -99,7 +99,7 @@ cmpwi r3, 1
 beq Return1960
 cmpwi r3, 2
 bne Exit
-li r3, 4128
+li r3, 4124
 b Exit
 Return1960:
 li r3, 0x00001960

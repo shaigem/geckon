@@ -5,7 +5,7 @@ import geckon
   parameters:
   - name: Hitbox ID
     bitCount: 3
-  - name: Apply To All Active Hitbox IDs
+  - name: Apply to Hitbox IDs 0-3
     bitCount: 1
     enums:
     - false
@@ -71,10 +71,10 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = MexGameData
+const CurrentGameData = VanillaGameData
 
 const
-    CodeVersion = "v1.3.1"
+    CodeVersion = "v1.4.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -1007,6 +1007,78 @@ defineCodes:
             OriginalExit:
                 lwz r5, 0x010C(r31)
 
+        # HURTBOX HIT - Character Hitbox - Attacker (Hitbox_MeleeAttackLogicOnPlayer)
+        patchInsertAsm "800771FC":
+            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
+            # r28 = defender data
+            # r27 = hit struct
+            # r26 = attacker data
+            # r24 has to be 0 to skip hitlag functions
+
+            # get ExtHit
+            mr r3, r26 # src data
+            mr r4, r27 # hit struct
+            li r5, 2324
+            li r6, 312
+            li r7, {ExtFighterDataOffset}
+            %branchLink("0x801510d8")
+            cmplwi r3, 0
+            beq Exit
+            # r3 = ExtHit
+            stw r3, 0x40(sp) # store ExtHit in stack for later use
+
+            lwz r25, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+            cmpwi r25, 0
+            bne Exit
+            li r24, 0
+
+            Exit:
+                li r25, 0 # original code line
+
+        # HURTBOX HIT - Character Hitbox - Victim (Hitbox_MeleeAttackLogicOnPlayer)
+        patchInsertAsm "800772c0":
+            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
+            # r28 = defender data
+            # r27 = hit struct
+            # r26 = attacker data
+            # r24 has to be 0 to skip hitlag functions
+            lwz r3, 0x40(sp) # get ExtHit from our patch at 800771FC
+            cmplwi r3, 0
+            beq Exit
+            lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+            cmpwi r0, 0
+            bne Exit
+            li r24, 0
+            Exit:
+                lbz r0, 0x221C(r28)
+
+        # HURTBOX HIT - Article Hitbox - Attacker+Victim (Hitbox_ProjectileLogicOnPlayer)
+        patchInsertAsm "800781f0":
+            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
+            # r28 = defender data
+            # r27 = ithit struct
+            # r26 = item attacker data
+            # r25 has to be 0 to skip hitlag functions
+
+            # get ExtHit
+            mr r3, r26 # src data
+            mr r4, r27 # hit struct
+            li r5, 1492
+            li r6, 316
+            li r7, {ExtItemDataOffset}
+            %branchLink("0x801510d8")
+            cmplwi r3, 0
+            beq Exit
+            # r3 = ExtHit
+
+            lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+            cmpwi r0, 0
+            bne Exit
+            li r25, 0
+
+            Exit:
+                lbz r0, 0x221C(r28)
+
         # Hitbox_MeleeLogicOnShield - Set Hit Vars
         patchInsertAsm "80076dec":
             # r31 = defender data
@@ -1056,7 +1128,105 @@ defineCodes:
                 # restore r6
                 mr r6, r30
                 stw r0, 0x19B0(r29) # original code line
+        
+        # COMMENTED OUT BELOW ARE CODES RELATING TO 0% HITLAG AGAINST SHIELDING OPPONENTS
+        # # SHIELD HIT - Character Hitbox - Attacker+Victim
+        # patchInsertAsm "80076d58":
+        #     # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
+        #     # r31 = defender data
+        #     # r30 = hit struct
+        #     # r29 = src data
+        #     # r3 has to be 0 to skip hitlag functions
+        #     mr r0, r3 # backup r3
 
+        #     # get ExtHit
+        #     mr r3, r29 # src data
+        #     mr r4, r30 # hit struct
+        #     li r5, 2324
+        #     li r6, 312
+        #     li r7, {ExtFighterDataOffset}
+        #     %branchLink("0x801510d8")
+        #     cmplwi r3, 0
+        #     beq Exit
+        #     # r3 = ExtHit
+        #     stw r3, 0x10(sp) # save ExtHit to stack for later use in other functions
+
+        #     lwz r3, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+        #     cmpwi r3, 0
+        #     mr r3, r0 # restore r3 here
+        #     bne Exit
+        #     li r3, 0
+
+        #     Exit:
+        #         lwz r0, 0x1924(r29) # orig line
+
+        # # SHIELD HIT - Article Hitbox - Attacker+Victim Hitbox_ProjectileLogicOnShield
+        # patchInsertAsm "80077718":
+        #     # r29 = defender data
+        #     # r28 = hit struct
+        #     # r27 = src data
+        #     # free regs to use f1, f0
+        #     # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
+        #     # r31 has to be 0 to skip hitlag functions
+        #     mr r3, r27 # src data
+        #     mr r4, r28 # hit struct
+        #     li r5, 1492
+        #     li r6, 316
+        #     li r7, {ExtItemDataOffset}
+        #     %branchLink("0x801510d8")
+        #     cmplwi r3, 0
+        #     beq Exit
+        #     # r3 = ExtHit
+        #     stw r3, 0x20(sp) # save ExtHit to stack for later use in other functions
+
+        #     lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+        #     cmpwi r0, 0
+        #     bne Exit
+        #     li r31, 0
+
+        #     Exit:
+        #         lwz r0, 0x0C34(r27) # orig line
+
+        # # Hitbox_MeleeLogicOnShield - Set Hit Vars
+        # patchInsertAsm "80076dec":
+        #     # r31 = defender data
+        #     # r30 = hit struct
+        #     # r29 = src data
+        #     # free regs to use: r0, f1, f0
+        #     mr r0, r3 # backup r3
+
+        #     lwz r3, 0x10(sp) # load ExtHit from patch 80076d58
+        #     cmplwi r3, 0
+        #     beq Exit
+
+        #     # r3 = exthit
+        #     lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
+        #     stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31)
+
+        #     Exit:
+        #         # restore r3
+        #         mr r3, r0
+        #         lwz r0, 0x30(r30) # original code line
+
+        # # Hitbox_ProjectileLogicOnShield - Set Hit Vars
+        # patchInsertAsm "80077918":
+        #     # r29 = defender data
+        #     # r28 = hit struct
+        #     # r27 = src data
+        #     # free regs to use f1, f0
+        #     lwz r3, 0x20(sp) # load ExtHit from stack (patch 80077718)
+        #     %branchLink("0x801510d8")
+        #     cmpwi r3, 0
+        #     beq Exit
+
+        #     # r3 = exthit
+        #     lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
+        #     stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r29)
+
+        #     Exit:
+        #         # restore r6
+        #         mr r6, r30
+        #         stw r0, 0x19B0(r29) # original code line
 
         # Hitbox Entity Vs Melee - Set Variables
         patchInsertAsm "802705ac":

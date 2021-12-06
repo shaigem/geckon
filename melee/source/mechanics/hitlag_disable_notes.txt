@@ -1,0 +1,408 @@
+https://smashboards.com/threads/melee-gecko-codes-guide-and-discussion.327311/post-18650879
+[QUOTE="Magus420, post: 18650879, member: 12573"]
+
+nop/60000000 in PPC is technically ori r0,r0,0 which Ors the contents of r0 with 0 into r0, which leaves r0 unchanged, doing nothing.
+
+
+Speaking of nop...
+
+
+
+Attacks that Deal Less than 1 Damage Have No Hitlag or DIability v2 (v1.02) [Magus]
+
+040771E0 60000000
+
+040772A4 60000000
+
+040781D4 60000000
+
+04076A48 60000000
+
+04076B9C 60000000
+
+04077A1C 60000000
+
+04077B70 60000000
+
+04076D3C 60000000
+
+040776FC 60000000
+
+
+
+[code]-DOL-
+
+1.02    0x73DC0, 0x73E84, 0x74DB4, 0x73628, 0x7377C, 0x745FC, 0x74750, 0x7391C, 0x742DC
+
+PAL    0x74498, 0x7455C, 0x7548C, 0x73D00, 0x73E54, 0x74CD4, 0x74E28, 0x73FF4, 0x749B4[/code]
+
+
+[spoiler=Notes][code]800771E0:  41820010    beq-    0x800771f0    <-- HURTBOX HIT - Character Hitbox - Attacker
+
+800772A4:  41820010    beq-    0x800772b4    <-- HURTBOX HIT - Character Hitbox - Victim
+
+800781D4:  41820010    beq-    0x800781e4    <-- HURTBOX HIT - Article Hitbox - Attacker+Victim
+
+80076A48:  41820010    beq-    0x80076a58    <-- HITBOX HIT - Char vs Char - Low Port
+
+80076B9C:  41820010    beq-    0x80076bac    <-- HITBOX HIT - Char vs Char - High Port
+
+80077A1C:  41820010    beq-    0x80077a2c    <-- HITBOX HIT - Char vs Article - Character
+
+80077B70:  41820010    beq-    0x80077b80    <-- HITBOX HIT - Char vs Article - Article
+
+80076D3C:  41820010    beq-    0x80076d4c    <-- SHIELD HIT - Character Hitbox - Attacker+Victim
+
+800776FC:  41820010    beq-    0x8007770c    <-- SHIELD HIT - Article Hitbox - Attacker+Victim[/code]
+
+
+[code]**v1.02 STUFF**
+
+800771C4:  C0028900    lfs    f0,-30464(r2)    HURTBOX HIT - Character Hitbox - Attacker. f0  = 0
+
+800771C8:  FC1F0000    fcmpu    cr0,f31,f0    f31 = actual float dmg done
+
+800771CC:  4182002C    beq-    0x800771f8    0 damage
+
+800771D0:  FC00F81E    fctiwz    f0,f31
+
+800771D4:  D8010050    stfd    f0,80(r1)
+
+800771D8:  80010054    lwz    r0,84(r1)    loads floored int dmg
+
+800771DC:  2C000000    cmpwi    r0,0
+
+800771E0:  41820010    beq-    0x800771f0    <-- THIS
+
+800771E4:  D8010050    stfd    f0,80(r1)
+
+800771E8:  83010054    lwz    r24,84(r1)    floored int dmg if >= 1
+
+800771EC:  48000010    b    0x800771fc
+
+800771F0:  3B000001    li    r24,1        1 for int dmg if < 1, and > 0
+
+800771F4:  48000008    b    0x800771fc
+
+800771F8:  3B000000    li    r24,0        0 for int dmg if = 0.00
+
+800771FC:  3B200000    li    r25,0
+
+...
+
+80077248:  801A1914    lwz    r0,6420(r26)
+
+8007724C:  7C180000    cmpw    r24,r0
+
+80077250:  40810008    ble-    0x80077258
+
+80077254:  931A1914    stw    r24,6420(r26)    r26=80D055C0(80D06ED4). stores int damage done. r24 is 1 even < 1.0 dmg
+
+80077258:  801C1988    lwz    r0,6536(r28)
+
+8007725C:  2C000000    cmpwi    r0,0
+
+80077260:  408201C0    bne-    0x80077420
+
+80077264:  801C198C    lwz    r0,6540(r28)
+
+80077268:  2C000000    cmpwi    r0,0
+
+8007726C:  408201B4    bne-    0x80077420
+
+80077270:  881C221D    lbz    r0,8733(r28)
+
+80077274:  5400FFFF    rlwinm.    r0,r0,31,31,31
+
+
+
+80077288:  C0028900    lfs    f0,-30464(r2)    HURTBOX HIT - Character Hitbox - Victim. f0  = 0
+
+8007728C:  FC1F0000    fcmpu    cr0,f31,f0    f31 = actual float dmg done
+
+80077290:  4182002C    beq-    0x800772bc    0 damage
+
+80077294:  FC00F81E    fctiwz    f0,f31
+
+80077298:  D8010050    stfd    f0,80(r1)
+
+8007729C:  80010054    lwz    r0,84(r1)    loads floored int dmg
+
+800772A0:  2C000000    cmpwi    r0,0
+
+800772A4:  41820010    beq-    0x800772b4    <-- THIS
+
+800772A8:  D8010050    stfd    f0,80(r1)
+
+800772AC:  83010054    lwz    r24,84(r1)    floored int dmg if >= 1
+
+800772B0:  48000010    b    0x800772c0
+
+800772B4:  3B000001    li    r24,1        1 for int dmg if < 1, and > 0
+
+800772B8:  48000008    b    0x800772c0
+
+800772BC:  3B000000    li    r24,0        0 for int dmg if = 0.00
+
+800772C0:  881C221C    lbz    r0,8732(r28)
+
+...
+
+80077340:  801C183C    lwz    r0,6204(r28)
+
+80077344:  7C180000    cmpw    r24,r0
+
+80077348:  40810008    ble-    0x80077350
+
+8007734C:  931C183C    stw    r24,6204(r28)    r28=80E1D100(80E1E93C). stores int damage done. r24 is 1 even < 1.0 dmg
+
+80077350:  38000001    li    r0,1
+
+80077354:  48000008    b    0x8007735c
+
+80077358:  38000000    li    r0,0
+
+8007735C:  2C000000    cmpwi    r0,0
+
+80077360:  418200B0    beq-    0x80077410
+
+
+
+800781B8:  C0028900    lfs    f0,-30464(r2)    HURTBOX HIT - Article Hitbox - Victim. f0  = 0
+
+800781BC:  FC1F0000    fcmpu    cr0,f31,f0    f31 = actual float dmg done
+
+800781C0:  4182002C    beq-    0x800781ec    0 damage
+
+800781C4:  FC00F81E    fctiwz    f0,f31
+
+800781C8:  D8010028    stfd    f0,40(r1)
+
+800781CC:  8001002C    lwz    r0,44(r1)    loads floored int dmg
+
+800781D0:  2C000000    cmpwi    r0,0
+
+800781D4:  41820010    beq-    0x800781e4    <-- THIS
+
+800781D8:  D8010028    stfd    f0,40(r1)
+
+800781DC:  8321002C    lwz    r25,44(r1)    floored int dmg if >= 1
+
+800781E0:  48000010    b    0x800781f0
+
+800781E4:  3B200001    li    r25,1        1 for int dmg if < 1, and > 0
+
+800781E8:  48000008    b    0x800781f0
+
+800781EC:  3B200000    li    r25,0        0 for int dmg if = 0.00
+
+800781F0:  881C221C    lbz    r0,8732(r28)
+
+...
+
+80078270:  801C183C    lwz    r0,6204(r28)
+
+80078274:  7C190000    cmpw    r25,r0
+
+80078278:  40810008    ble-    0x80078280
+
+8007827C:  933C183C    stw    r25,6204(r28)    r28=80E1D100(80E1E93C). stores int damage done. r25 is 1 even < 1.0 dmg
+
+80078280:  38000001    li    r0,1
+
+80078284:  48000008    b    0x8007828c
+
+80078288:  38000000    li    r0,0
+
+8007828C:  2C000000    cmpwi    r0,0
+
+80078290:  418200A0    beq-    0x80078330
+
+
+
+80076A30:  C0028900    lfs    f0,-30464(r2)    HITBOX HIT - Char vs Char - Low Port
+
+80076A34:  FC020000    fcmpu    cr0,f2,f0
+
+80076A38:  41820028    beq-    0x80076a60
+
+80076A3C:  D8210040    stfd    f1,64(r1)
+
+80076A40:  80010044    lwz    r0,68(r1)
+
+80076A44:  2C000000    cmpwi    r0,0
+
+80076A48:  41820010    beq-    0x80076a58    <-- THIS
+
+80076A4C:  D8210040    stfd    f1,64(r1)
+
+80076A50:  83210044    lwz    r25,68(r1)
+
+80076A54:  48000010    b    0x80076a64
+
+80076A58:  3B200001    li    r25,1
+
+80076A5C:  48000008    b    0x80076a64
+
+80076A60:  3B200000    li    r25,0
+
+80076A64:  3B400000    li    r26,0
+
+
+
+80076B84:  C0028900    lfs    f0,-30464(r2)    HITBOX HIT - Char vs Char - High Port
+
+80076B88:  FC020000    fcmpu    cr0,f2,f0
+
+80076B8C:  41820028    beq-    0x80076bb4
+
+80076B90:  D8210040    stfd    f1,64(r1)
+
+80076B94:  80010044    lwz    r0,68(r1)
+
+80076B98:  2C000000    cmpwi    r0,0
+
+80076B9C:  41820010    beq-    0x80076bac    <-- THIS
+
+80076BA0:  D8210040    stfd    f1,64(r1)
+
+80076BA4:  83210044    lwz    r25,68(r1)
+
+80076BA8:  48000010    b    0x80076bb8
+
+80076BAC:  3B200001    li    r25,1
+
+80076BB0:  48000008    b    0x80076bb8
+
+80076BB4:  3B200000    li    r25,0
+
+80076BB8:  3B400000    li    r26,0
+
+
+
+80077A04:  C0028900    lfs    f0,-30464(r2)    HITBOX HIT - Char vs Article - Character
+
+80077A08:  FC020000    fcmpu    cr0,f2,f0
+
+80077A0C:  41820028    beq-    0x80077a34
+
+80077A10:  D8210040    stfd    f1,64(r1)
+
+80077A14:  80010044    lwz    r0,68(r1)
+
+80077A18:  2C000000    cmpwi    r0,0
+
+80077A1C:  41820010    beq-    0x80077a2c    <-- THIS
+
+80077A20:  D8210040    stfd    f1,64(r1)
+
+80077A24:  83210044    lwz    r25,68(r1)
+
+80077A28:  48000010    b    0x80077a38
+
+80077A2C:  3B200001    li    r25,1
+
+80077A30:  48000008    b    0x80077a38
+
+80077A34:  3B200000    li    r25,0
+
+80077A38:  3B400000    li    r26,0
+
+
+
+80077B58:  C0028900    lfs    f0,-30464(r2)    HITBOX HIT - Char vs Article - Article
+
+80077B5C:  FC020000    fcmpu    cr0,f2,f0
+
+80077B60:  41820028    beq-    0x80077b88
+
+80077B64:  D8210040    stfd    f1,64(r1)
+
+80077B68:  80010044    lwz    r0,68(r1)
+
+80077B6C:  2C000000    cmpwi    r0,0
+
+80077B70:  41820010    beq-    0x80077b80    <-- THIS
+
+80077B74:  D8210040    stfd    f1,64(r1)
+
+80077B78:  83210044    lwz    r25,68(r1)
+
+80077B7C:  48000010    b    0x80077b8c
+
+80077B80:  3B200001    li    r25,1
+
+80077B84:  48000008    b    0x80077b8c
+
+80077B88:  3B200000    li    r25,0
+
+
+
+80076D20:  C0028900    lfs    f0,-30464(r2)    SHIELD HIT - Character Hitbox - Attacker+Victim. f0  = 0
+
+80076D24:  FC010000    fcmpu    cr0,f1,f0    f1 = actual float dmg done
+
+80076D28:  4182002C    beq-    0x80076d54    0 damage
+
+80076D2C:  FC00081E    fctiwz    f0,f1
+
+80076D30:  D8010020    stfd    f0,32(r1)
+
+80076D34:  80010024    lwz    r0,36(r1)    loads floored int dmg
+
+80076D38:  2C000000    cmpwi    r0,0
+
+80076D3C:  41820010    beq-    0x80076d4c    <-- THIS
+
+80076D40:  D8010020    stfd    f0,32(r1)
+
+80076D44:  80610024    lwz    r3,36(r1)    floored int dmg if >= 1
+
+80076D48:  48000010    b    0x80076d58
+
+80076D4C:  38600001    li    r3,1        1 for int dmg if < 1, and > 0
+
+80076D50:  48000008    b    0x80076d58
+
+80076D54:  38600000    li    r3,0        0 for int dmg if = 0.00
+
+
+
+800776E0:  C0028900    lfs    f0,-30464(r2)    SHIELD HIT - Article Hitbox - Victim. f0  = 0
+
+800776E4:  FC010000    fcmpu    cr0,f1,f0    f1 = actual float dmg done
+
+800776E8:  4182002C    beq-    0x80077714    0 damage
+
+800776EC:  FC00081E    fctiwz    f0,f1
+
+800776F0:  D8010038    stfd    f0,56(r1)
+
+800776F4:  8001003C    lwz    r0,60(r1)    loads floored int dmg
+
+800776F8:  2C000000    cmpwi    r0,0
+
+800776FC:  41820010    beq-    0x8007770c    <-- THIS
+
+80077700:  D8010038    stfd    f0,56(r1)
+
+80077704:  83E1003C    lwz    r31,60(r1)    floored int dmg if >= 1
+
+80077708:  48000010    b    0x80077718
+
+8007770C:  3BE00001    li    r31,1        1 for int dmg if < 1, and > 0
+
+80077710:  48000008    b    0x80077718
+
+80077714:  3BE00000    li    r31,0        0 for int dmg if = 0.00[/code]
+
+[/spoiler]
+
+
+Makes stale 1 dmg hitboxes (only affects some things with lots of hits) work like in versions 1.00 and 1.01 where they aren't A/S/DIable. Being able to ASDI these hits a full 3 units half a dozen times or more through the move makes some of them a joke to escape and bad in 1.02 and PAL. May be missing a couple here but the attacks it aAffects include the rapid hits on Zelda's f/u-smash and neutral-b, Samus' u-air and up-b, Peach's up-b, YL's up-b, Mario's up/down-b, Mewtwo's u-smash and n-air (bottom hitboxes only), ICs down-b (outer range), Ness' PKT1 (tail), and CF/Sheik/Kirby/Fox/Falco/Kirby/Link/YL's rapid jabs.
+
+
+Since it affects mostly characters that aren't as good it contributes to making v1.02 the most imbalanced NTSC version. Now for everyone I see running backups of v1.02 to use it so I can use Zelda on more than just my own setup =P
+
+
+[/QUOTE]
