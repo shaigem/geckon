@@ -34,17 +34,13 @@ stfd f29, 0x00000028 (sp)
 stw r31, 0x00000024 (sp)
 lwz r5, 0x0000002C (r3)
 mr r31, r5
-lwz r0, 0x0000186C(r5)
+lwz r0, 0x00001960(r5)
 cmpwi r0, 0
-bne BranchToUnk
+bne lbl_800C3634
+ResetHitlag:
 lfs f0, 0xFFFF8870(rtoc)
 stfs f0, 0x00001954(r5)
 stfs f0, 0x0000195C(r5)
-BranchToUnk:
-lis r12, 0x8006D044 @h
-ori r12, r12, 0x8006D044 @l
-mtctr r12
-bctrl
 lbl_800C3634:
 lwz r3, 0xFFFFAEB4(r13)
 lfs f0, 0x00000100(r3)
