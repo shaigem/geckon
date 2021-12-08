@@ -75,10 +75,10 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = VanillaGameData
+const CurrentGameData = A20XXGameData
 
 const
-    CodeVersion = "v1.5.0"
+    CodeVersion = "v1.6.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -833,6 +833,26 @@ defineCodes:
                 %`.float`(1.7) # mario's fall speed
             Exit:
                 %emptyBlock
+
+        # ASDI multiplier mechanics patch
+        patchInsertAsm "8008e7a4":
+            # ASDI distance is increased or decreased based on multiplier
+            # r31 = fighter data
+            # f2 = 3.0 multiplier
+            # f0 = free to use
+            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
+            fmuls f2, f2, f0 # 3.0 * our custom sdi multiplier
+            lfs f0, 0x63C(r31) # original code line
+
+        # ASDI multiplier mechanics patch 2
+        patchInsertAsm "8008e7c0":
+            # ASDI distance is increased or decreased based on multiplier
+            # r31 = fighter data
+            # f2 = 3.0 multiplier
+            # f0 = free to use
+            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
+            fmuls f2, f2, f0 # 3.0 * our custom sdi multiplier
+            lfs f0, 0x624(r31) # original code line
 
         # SDI multiplier mechanics patch
         patchInsertAsm "8008e558":
