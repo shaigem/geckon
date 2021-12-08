@@ -1,5 +1,4 @@
 import geckon
-
 #[- code: 0xF1
   name: Hitbox Extension
   parameters:
@@ -40,8 +39,13 @@ import geckon
     enums:
       - false
       - true
+  - name: Disable Meteor Cancel
+    bitCount: 1
+    enums:
+      - false
+      - true
   - name: Padding
-    bitCount: 3]#
+    bitCount: 2]#
 
 type GameDataType* = enum
         Vanilla, A20XX, Mex
@@ -74,7 +78,7 @@ const
 const CurrentGameData = VanillaGameData
 
 const
-    CodeVersion = "v1.4.1"
+    CodeVersion = "v1.5.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -187,8 +191,18 @@ const
     ExtHitSDIMultiplierOffset = ExtHitHitlagOffset + 0x4 # float
     ExtHitShieldstunMultiplierOffset = ExtHitSDIMultiplierOffset + 0x4 # float
     ExtHitHitstunModifierOffset = ExtHitShieldstunMultiplierOffset + 0x4 # float
-
     ExtHitFlags1Offset = ExtHitHitstunModifierOffset + 0x4 # char
+
+    ExtHitFlags1Stretch = 0x80
+    ExtHitFlags1AngleFlipOpposite= 0x40
+    ExtHitFlags1AngleFlipCurrent= 0x20
+    ExtHitFlags1SetWeight = 0x10
+    ExtHitFlags1Flinchless = 0x8
+    ExtHitFlags1DisableMeteorCancel = 0x4
+
+    ExtHitX2StretchOffset = ExtHitFlags1Offset + 0x4 # float
+    ExtHitY2StretchOffset = ExtHitX2StretchOffset + 0x4 # float
+    ExtHitZ2StretchOffset = ExtHitY2StretchOffset + 0x4 # float
 
 # Size of new hitbox data = last var offset + last var offset.size
 const ExtHitSize = ExtHitFlags1Offset + 0x4
@@ -209,6 +223,7 @@ const
     Flags1Offset = ShieldstunMultiplierOffset + 0x4 # byte
     FlinchlessFlag = 0x1
     TempGravityFallSpeedFlag = 0x2
+    DisableMeteorCancelFlag = 0x4
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
@@ -268,6 +283,17 @@ defineCodes:
 
             OriginalExit:
                 lfs f1, -0x5B40(rtoc)
+
+        # Patch Disable Meteor Cancel
+        patchInsertAsm "8007ac68":
+            # r31 = fighter data
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            %`rlwinm.`(r0, r0, 0, DisableMeteorCancelFlag)
+            beq NormalCheck
+            li r3, 0 # cannot meteor cancel
+            blr
+            NormalCheck:
+                cmplwi r3, 361 # original code line
 
         # Patch Damage_AddHitlag - No Model Shifting On Hitlag Frames <= 1
         patchInsertAsm "80090618":
@@ -973,6 +999,17 @@ defineCodes:
                     lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                     rlwimi r0, r3, 0, {FlinchlessFlag}
                     stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+
+            StoreDisableMeteorCancel:
+                lbz r3, {ExtHitFlags1Offset}(r28)
+                %`rlwinm.`(r0, r3, 0, ExtHitFlags1DisableMeteorCancel)
+                li r3, 0
+                beq MeteorCancelSet
+                li r3, 1
+                MeteorCancelSet:
+                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
+                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                 
             Epilog:
                 %restore
@@ -1031,7 +1068,6 @@ defineCodes:
             cmpwi r25, 0
             bne Exit
             li r24, 0
-
             Exit:
                 li r25, 0 # original code line
 
@@ -1049,6 +1085,11 @@ defineCodes:
             cmpwi r0, 0
             bne Exit
             li r24, 0
+            lbz r3, 0x2219(r28)
+            rlwimi r3, r24, 2, 29, 29
+            stb r3, 0x2219(r28)
+            stw r24, 0x1954(r28) # set freeze frames to 0
+            stw r24, 0x195C(r28) # reset hitlag frames to 0
             Exit:
                 lbz r0, 0x221C(r28)
 
@@ -1075,7 +1116,12 @@ defineCodes:
             cmpwi r0, 0
             bne Exit
             li r25, 0
-
+            # reset hitlag for the victim
+            lbz r3, 0x2219(r28)
+            rlwimi r3, r25, 2, 29, 29
+            stb r3, 0x2219(r28)
+            stw r25, 0x1954(r28) # set freeze frames to 0
+            stw r25, 0x195C(r28) # reset hitlag frames to 0
             Exit:
                 lbz r0, 0x221C(r28)
 
@@ -1367,6 +1413,11 @@ defineCodes:
             # reset flinchless flag to 0
             lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
             rlwimi r0, r3, 0, {FlinchlessFlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+
+            # reset disable meteor cancel flag to 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
             stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)

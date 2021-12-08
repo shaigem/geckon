@@ -88,6 +88,16 @@ WindboxSet:
 lbz r0, 9288(r30)
 rlwimi r0, r3, 0, 1
 stb r0, 9288(r30)
+StoreDisableMeteorCancel:
+lbz r3, 16(r28)
+rlwinm. r0, r3, 0, 4
+li r3, 0
+beq MeteorCancelSet
+li r3, 1
+MeteorCancelSet:
+lbz r0, 9288(r30)
+rlwimi r0, r3, 2, 4
+stb r0, 9288(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
