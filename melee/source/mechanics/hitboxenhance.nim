@@ -200,9 +200,6 @@ const
     ExtHitFlags1Flinchless = 0x8
     ExtHitFlags1DisableMeteorCancel = 0x4
 
-    ExtHitX2StretchOffset = ExtHitFlags1Offset + 0x4 # float
-    ExtHitY2StretchOffset = ExtHitX2StretchOffset + 0x4 # float
-    ExtHitZ2StretchOffset = ExtHitY2StretchOffset + 0x4 # float
 
 # Size of new hitbox data = last var offset + last var offset.size
 const ExtHitSize = ExtHitFlags1Offset + 0x4
