@@ -1,1 +1,0 @@
-const ZeroDataLength* = 0x8000C160

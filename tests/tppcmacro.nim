@@ -23,7 +23,7 @@ bgt+ Bob"""
         const a =
             ppc:
                 `rlwinm.`(r4, r4, 27, 31, 31)
-                `cmpwi.`(r2, 90)
+                `cmpwi.` r2, 90
                 Bob:
                     John:
                         Cat:

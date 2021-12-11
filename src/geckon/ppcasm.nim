@@ -62,6 +62,9 @@ proc toAsmString(n: NimNode): NimNode =
     of nnkDotExpr:
         expectLen n, 2
         result = newStrLitNode(n[0].strVal & "." & n[1].strVal)
+    of nnkAccQuoted:
+        expectLen n, 2
+        result = newStrLitNode(n[0].strVal & "" & n[1].strVal)
     of nnkIdent:
         result = n.toStrLit
     of nnkFloatLit:

@@ -1,19 +1,26 @@
 import geckon / [ppcasm, codescript]
-import std/[os, parseOpt, tempFiles, macros]
+import std/[os, strformat]
 
 export ppcasm, codescript
 
-proc generate*(outputPath: string; codeScripts: varargs[GeckoCodeScript]) {.compileTime.} =
-    if codeScripts.len == 0:
-        return
-    let includeStmt = """
+func generateHeader(codeScript: GeckoCodeScript): string =
+    &"""
+# generated with geckon
+# {codeScript.name}
+# authors: {codeScript.authors}
+# description: {codeScript.description}
 .include "punkpc.s"
 punkpc ppc
 
 """
+
+proc generate*(outputPath: string; codeScripts: varargs[GeckoCodeScript]) =
+    if codeScripts.len == 0:
+        raise newException(ValueError, "no code scripts specified")
     for s in codeScripts:
-        echo outputPath, " ", s.name, " "
         try:
-            writeFile(outputPath, includeStmt & s.code)
+            let dir = splitFile(outputPath).dir
+            createDir(dir)
+            writeFile(outputPath, generateHeader(s) & s.code)
         except IOError as e:
             raise (ref IOError)(msg: e.msg)
