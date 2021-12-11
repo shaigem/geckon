@@ -61,7 +61,7 @@ proc toAsmString(n: NimNode): NimNode =
         result = newStrLitNode(ls.strVal & op.strVal & " " & rs.strVal)
     of nnkDotExpr:
         expectLen n, 2
-        result = newStrLitNode(n[0].strVal & " " & n[1].strVal)
+        result = newStrLitNode(n[0].strVal & "." & n[1].strVal)
     of nnkIdent:
         result = n.toStrLit
     of nnkFloatLit:
@@ -104,6 +104,16 @@ proc parseStmtList(n: NimNode): NimNode =
             result.add newCall(addSym, parsedList, newLit("\n"))
     result.add parsedList
 
+proc parseBlockStmt(n: NimNode): NimNode =
+    expectKind n, nnkBlockStmt
+    expectMinLen n, 1
+    result = newStmtList()
+    let addSym = bindSym"add"
+    var parsedList = gensym(nskVar, "parsed")
+    result.add newVarStmt(parsedList, newLit"")
+    result.add newCall(addSym, parsedList, n)
+    result.add parsedList
+
 proc ppcImpl(n: NimNode): NimNode =
     case n.kind
     of nnkCall:
@@ -125,6 +135,8 @@ proc ppcImpl(n: NimNode): NimNode =
             result = infix(toAsmString(n[0]), "&", n[1])
     of nnkCommand:
         result = parseCommand(n)
+    of nnkBlockStmt:
+        result = parseBlockStmt(n)
     of nnkStmtList:
         result = parseStmtList(n)
     of nnkIdent, nnkDotExpr, nnkInfix, nnkPrefix:
