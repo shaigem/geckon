@@ -37,6 +37,18 @@ Cat:
 .float 20.0"""
         check a == a2
 
+    test "straight string replacements":
+        const a =
+            ppc:
+                lfs f1, 0x2C(r31)
+                ""
+                "lfs f2, -0x10(r31)"
+        const a2 = """
+lfs f1, 44(r31)
+
+lfs f2, -0x10(r31)"""
+        check a == a2
+
     test "command with call instructions":
         const a =
             ppc:

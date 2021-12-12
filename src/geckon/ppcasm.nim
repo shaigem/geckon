@@ -1,5 +1,18 @@
 import std/macros
 
+type
+    Register* = enum
+        r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14,
+                        r15,
+                r16, r17, r18, r19, r20, r21, r22, r23, r24, r25, r26,
+                                r27, r28,
+                r29, r30, r31
+        f0, f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12, f13, f14,
+                        f15,
+                f16, f17, f18, f19, f20, f21, f22, f23, f24, f25, f26,
+                                f27, f28,
+                f29, f30, f31
+
 proc ppcImpl(n: NimNode): NimNode
 proc toAsmString(n: NimNode): NimNode
 proc parseCommand(n: NimNode, seperator: string = ", "): NimNode
@@ -65,6 +78,8 @@ proc toAsmString(n: NimNode): NimNode =
     of nnkAccQuoted:
         expectLen n, 2
         result = newStrLitNode(n[0].strVal & "" & n[1].strVal)
+    of nnkStrLit:
+        result = newStrLitNode(n.strVal)
     of nnkIdent:
         result = n.toStrLit
     of nnkFloatLit:
@@ -142,7 +157,7 @@ proc ppcImpl(n: NimNode): NimNode =
         result = parseBlockStmt(n)
     of nnkStmtList:
         result = parseStmtList(n)
-    of nnkIdent, nnkDotExpr, nnkInfix, nnkPrefix:
+    of nnkIdent, nnkDotExpr, nnkInfix, nnkPrefix, nnkStrLit:
         result = toAsmString(n)
     else:
         error "unknown node kind for body: " & $n.kind & "\n" & treeRepr(n)
