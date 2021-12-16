@@ -5,6 +5,11 @@ from strutils import strip
 
 export `&`, strip
 
+from strformat import `&`
+from strutils import strip, toHex
+
+export `&`, strip, toHex
+
 type
     Register* {.pure.} = enum
         r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12, r13, r14,
@@ -31,7 +36,7 @@ proc ppcImpl(c, b: NimNode): NimNode =
     case b.kind:
     of nnkCall:
         let name = b[0]
-        expectKind name, nnkIdent
+        expectKind name, {nnkIdent, nnkIntLit}
         if b.len == 1:
             error("Invalid call with the name of: " & name.strVal, b)
             return
@@ -51,6 +56,16 @@ proc ppcImpl(c, b: NimNode): NimNode =
         else:
             toStrNode.strVal = commandIdent.repr
         for i in 1 ..< b.len:
+            # TODO this part should be separated for reuse...
+            case b[i].kind
+            of nnkCommand, nnkCall:
+                for ci, cmdChild in b[i]:
+                    if cmdChild.kind == nnkInt64Lit:
+                        b[i][ci] = newIntLitNode(cmdChild.intVal)
+            of nnkInt64Lit:
+                b[i] = newIntLitNode(b[i].intVal)
+            else:
+                discard
             let toAppend = toStrNode.strVal & " " & b[i].repr &
                     (if i == b.len - 1:
                         "\n"
@@ -60,6 +75,17 @@ proc ppcImpl(c, b: NimNode): NimNode =
         result.add infix(c, "&=", prefix(toStrNode, "&"))
     of nnkBlockStmt:
         addToString(b)
+    of nnkStrLit:
+        addToString newStrLitNode(b.strVal)
+    of nnkInfix:
+        expectLen b, 3
+        let op = b[0]
+        let ls = b[1]
+        let rs = b[2]
+        addToString(newStrLitNode(ls.strVal & op.strVal & " " & rs.strVal))
+    of nnkDotExpr:
+        expectLen b, 2
+        addToString newStrLitNode(b[0].strVal & "." & b[1].strVal)
     of nnkIdent:
         addToString(b.toStrLit())
     of nnkPrefix:
@@ -77,10 +103,10 @@ macro ppc*(x: untyped): untyped =
     result = newStmtList()
     result.add newVarStmt(resultingCode, newStrLitNode(""))
     result.add ppcImpl(resultingCode, x)
-    result.add newCall(ident("strip"), resultingCode)
+    result.add quote do:
+        var res = `resultingCode`
+        res.strip()
 
-template `%`*(f: untyped): string =
-    f
 
 template `bgt-`*(label: untyped): string =
     ppc:
