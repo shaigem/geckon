@@ -15,7 +15,7 @@ suite "gecko code scripts":
         const c = """
 li r4, 20
 Test:
-lfs f1, 6(r31)"""
+lfs f1, 0x00000006(r31)"""
         check:
             s.name == "Test code"
             s.authors == ["ronnie", "bob"]

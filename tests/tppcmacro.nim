@@ -22,15 +22,15 @@ bgt+ Bob"""
     test "instructions with prefix/infix dot expr":
         const a =
             ppc:
-                `rlwinm.`(r4, r4, 27, 31, 31)
-                `cmpwi.` r2, 90
+                "rlwinm." r4, r4, 27, 31, 31 + 9
+                "cmpwi." r2, 90 + wat
                 Bob:
                     John:
                         Cat:
-                            `.float`(20.0)
+                            ".float" 20.0
         const a2 = """
-rlwinm. r4, r4, 27, 31, 31
-cmpwi. r2, 90
+rlwinm. r4, r4, 27, 31, 31 + 9
+cmpwi. r2, 90 + wat
 Bob:
 John:
 Cat:
@@ -44,7 +44,7 @@ Cat:
                 ""
                 "lfs f2, -0x10(r31)"
         const a2 = """
-lfs f1, 44(r31)
+lfs f1, 0x0000002C(r31)
 
 lfs f2, -0x10(r31)"""
         check a == a2
@@ -55,8 +55,8 @@ lfs f2, -0x10(r31)"""
                 lfs f1, 0x2C(r31)
                 lfs f2, -0x10(r31)
         const a2 = """
-lfs f1, 44(r31)
-lfs f2, -16(r31)"""
+lfs f1, 0x0000002C(r31)
+lfs f2, 0xFFFFFFF0(r31)"""
         check a == a2
 
     test "command with call nim interop":
@@ -69,31 +69,57 @@ lfs f2, -16(r31)"""
         const offset = 0x820
         const a =
             ppc:
-                lfs f0, 0x10(%regName)
-                lfs f1, %%Stuff.Orange.int64(r20)
-                lfs f1, %%(-(calculateOffset(Stuff.Orange.int64 + 20) + offset))(%regName)
+                lfs f0, 0x10({regName})
+                lfs f1, {Stuff.Orange.int64}(r20)
+                lfs f1, {-(calculateOffset(Stuff.Orange.int64 + 20) + offset)}({regName})
                 Bob:
-                    lfs f2, %%offset(%regName)
-                    lfs f3, %%offset(r20)
-                    lfs f4, 0x14(%regName)
+                    lfs f2, {offset}({regName})
+                    lfs f3, {offset}(r20)
+                    lfs f4, 0x14({regName})
         const a2 = """
-lfs f0, 16(r29)
+lfs f0, 0x00000010(r29)
 lfs f1, 1(r20)
 lfs f1, -2121(r29)
 Bob:
 lfs f2, 2080(r29)
 lfs f3, 2080(r20)
-lfs f4, 20(r29)"""
+lfs f4, 0x00000014(r29)"""
         check a == a2
-
+    
     test "command nim interop":
         const regName = "r29"
         const offset = 0x820
         const a =
             ppc:
-                li %regName, %offset
+                li {regName}, {offset}
         const a2 = "li r29, 2080"
         check a == a2
+
+    test "inline nim interop":
+        const regName = "r29"
+        const offset = 0x820
+        const a =
+            ppc:
+                block test:
+                    ppc:
+                        li {regName}, {offset}
+        const a2 = "li r29, 2080"
+        check a == a2
+
+    test "dot tests":
+        const regName = "r29"
+        const offset = 0x820
+        const a =
+            ppc:
+                li {regName}, {offset}
+                gecko 0x80158015
+                gecko.end
+        const a2 = """
+li r29, 2080
+gecko 2148892693
+gecko.end"""
+        check a == a2
+
 
     test "function nim interop":
         proc calculateOffset(address: int64): string =
@@ -104,7 +130,7 @@ lfs f4, 20(r29)"""
         const a2 = "li r4, 69"
         check a == a2
 
-    test "function with block stmt nim interop":
+#[     test "function with block stmt nim interop":
         template insertAsm(address: int64, body: untyped): string =
             ppc: body
         const a =
@@ -117,17 +143,17 @@ lfs f4, 20(r29)"""
 li r3, 20
 li r4, 10
 nop"""
-        check a == a2
+        check a == a2 ]#
 
     test "special @ symbols":
         const reg = "r12"
         const address = 0x80151234
         const a =
             ppc:
-                lis %reg, 0x80151234 @h
-                ori %reg, %reg, 0x80151234 @l
-                lis %reg, %address @h
-                # TODO test no space between the @h and @l
+                lis {reg}, 0x80151234 @h
+                ori {reg}, {reg}, 0x80151234 @l
+                lis {reg}, {address} @h
+                # TODO test spacing
         const a2 = """
 lis r12, 2148864564 @h
 ori r12, r12, 2148864564 @l
@@ -144,7 +170,7 @@ lis r12, 2148864564 @h"""
             ppc:
                 %calculateOffset(Stuff.Apple.int64)
                 %(Stuff.Orange.int64.calculateOffset)
-                li r3, %(Stuff.Apple.int64)
+                li r3, {Stuff.Apple.int64}
         const a2 = """
 li r4, 0
 li r4, 1
@@ -154,27 +180,21 @@ li r3, 0"""
     test "branches & nim interop":
         proc calculateOffset(address: int64): string =
             "li r4, " & $address
-        template insertAsm(address: int64, body: untyped): string =
-            ppc:
-                body
         type Stuff = enum
             Apple = 0,
             Orange = 1
         const no = 10
-        const address = 0x80158012
         const a =
             ppc:
                 nop
                 li r3, 0
                 b CheckState
                 CheckState:
-                    %insertAsm(0x80158015):
-                        %calculateOffset(20)
-                    cmpwi r2, %($Stuff.Apple.int64)
+                    %calculateOffset(20)
+                    cmpwi r2, {$Stuff.Apple.int64}
                     MoreChecks:
-                        %insertAsm(address):
-                            cmpwi r4, %no
-                            ble+ Exit
+                        cmpwi r4, {no}
+                        ble+ Exit
                         %calculateOffset(0)
                 Exit:
                     nop

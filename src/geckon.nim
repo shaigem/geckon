@@ -17,10 +17,12 @@ punkpc ppc
 proc generate*(outputPath: string; codeScripts: varargs[GeckoCodeScript]) =
     if codeScripts.len == 0:
         raise newException(ValueError, "no code scripts specified")
-    for s in codeScripts:
-        try:
-            let dir = splitFile(outputPath).dir
-            createDir(dir)
-            writeFile(outputPath, generateHeader(s) & s.code)
-        except IOError as e:
-            raise (ref IOError)(msg: e.msg)
+    try:
+        let dir = splitFile(outputPath).dir
+        createDir(dir)
+        let f = open(outputPath, fmReadWrite)
+        for s in codeScripts:
+                f.write(generateHeader(s) & s.code & "\n")
+        f.close()
+    except IOError as e:
+        raise (ref IOError)(msg: e.msg)
