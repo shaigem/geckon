@@ -75,7 +75,7 @@ const
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = A20XXGameData
+const CurrentGameData = VanillaGameData
 
 const
     CodeVersion = "v1.6.1"
@@ -193,10 +193,10 @@ const
     ExtHitHitstunModifierOffset = ExtHitShieldstunMultiplierOffset + 0x4 # float
     ExtHitFlags1Offset = ExtHitHitstunModifierOffset + 0x4 # char
 
-    ExtHitFlags1Stretch = 0x80
+    ExtHitFlags1SetWeight = 0x80
     ExtHitFlags1AngleFlipOpposite= 0x40
     ExtHitFlags1AngleFlipCurrent= 0x20
-    ExtHitFlags1SetWeight = 0x10
+    ExtHitFlags1Stretch = 0x10
     ExtHitFlags1Flinchless = 0x8
     ExtHitFlags1DisableMeteorCancel = 0x4
 
@@ -535,7 +535,7 @@ defineCodes:
             b GetInitialPos
 
             SetForFighter:
-                li r0, 2
+                li r0, 2 # TODO should this be 4?
                 stw r0, 0(r31)
         
             GetInitialPos:
