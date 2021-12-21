@@ -3,15 +3,15 @@ import std/[os, strformat]
 
 export ppcasm, codescript
 
+const PunkpcImport = """.include "punkpc.s"
+punkpc ppc
+"""
+
 func generateHeader(codeScript: GeckoCodeScript): string =
     &"""
-# generated with geckon
 # {codeScript.name}
 # authors: {codeScript.authors}
 # description: {codeScript.description}
-.include "punkpc.s"
-punkpc ppc
-
 """
 
 proc generate*(outputPath: string; codeScripts: varargs[GeckoCodeScript]) =
@@ -21,6 +21,7 @@ proc generate*(outputPath: string; codeScripts: varargs[GeckoCodeScript]) =
         let dir = splitFile(outputPath).dir
         createDir(dir)
         let f = open(outputPath, fmReadWrite)
+        f.write(PunkpcImport)
         for s in codeScripts:
                 f.write(generateHeader(s) & s.code & "\n")
         f.close()
