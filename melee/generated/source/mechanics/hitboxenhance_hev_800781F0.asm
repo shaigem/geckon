@@ -2,7 +2,7 @@ mr r3, r26
 mr r4, r27
 li r5, 1492
 li r6, 316
-li r7, 4044
+li r7, 4048
 lis r12, 0x801510d8 @h
 ori r12, r12, 0x801510d8 @l
 mtctr r12

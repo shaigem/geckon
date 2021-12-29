@@ -24,12 +24,12 @@ b Invalid
 GetExtHitForItem:
 li r3, 1492
 li r4, 316
-li r5, 4044
+li r5, 4048
 b GetExtHit
 GetExtHitForFighter:
 li r3, 2324
 li r4, 312
-li r5, 9196
+li r5, 9248
 GetExtHit:
 li r26, 4
 mtctr r26

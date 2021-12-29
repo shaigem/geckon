@@ -71,14 +71,14 @@ const
 
     # as of commit #f779005 Nov-29-2021 @ 1:28 AM EST
     MexGameData = GameData(dataType: GameDataType.Mex,
-    fighterDataSize: FighterDataOrigSize + 16 + 32,
+    fighterDataSize: FighterDataOrigSize + 52,
     itemDataSize: ItemDataOrigSize + 0x4)
 
 # The current game data to compile the code for
-const CurrentGameData = VanillaGameData
+const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.6.1"
+    CodeVersion = "v1.6.2"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -1703,6 +1703,18 @@ defineCodes:
 
             OriginalExit:
                 fmr f3, f1
+
+        # Patch for Subaction_FastForward
+        patchInsertAsm "80073430":
+            subi r0, r28, 10 # orig code line
+            cmpwi r28, 0x3C # Hitbox Extension Custom ID
+            bne OriginalExit
+            lwz r4, 0x8(r29) # current action ptr
+            addi r4, r4, 8
+            stw r4, 0x8(r29)
+            %branch("0x80073450")
+            OriginalExit:
+                %emptyBlock
 
         # Patch for FastForwardSubactionPointer2
         patchInsertAsm "80073574":

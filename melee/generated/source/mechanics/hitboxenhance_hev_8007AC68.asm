@@ -1,4 +1,4 @@
-lbz r0, 9288(r31)
+lbz r0, 9340(r31)
 rlwinm. r0, r0, 0, 4
 beq NormalCheck
 li r3, 0
