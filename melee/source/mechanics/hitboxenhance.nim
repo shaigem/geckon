@@ -292,15 +292,6 @@ defineCodes:
             NormalCheck:
                 cmplwi r3, 361 # original code line
 
-        # Patch Damage_AddHitlag - No Model Shifting On Hitlag Frames <= 1
-        patchInsertAsm "80090618":
-            cmpwi r3, 1 # if calculated hitlag frames <= 1, don't bother shifting model frames
-            bgt OriginalExit
-            li r3, 0
-            OriginalExit: 
-                cmpwi r28, 2 # this was called earlier in the function, need to call it again
-                sth r3, 0x18FA(r31) # orig line, model shift frames
-
         # Damage_BranchToDamageHandler - Patch Custom Windbox Function
         patchInsertAsm "8008edb0":
             # r31 = ft/it gobj
@@ -345,14 +336,6 @@ defineCodes:
                 stw r31, 0x0024 (sp)
                 lwz r5, 0x002C (r3)
                 mr r31, r5
-                # if hitlag multiplier is 0, reset freeze frames & hitlag frames or the player will simply wait until hitlag is over before applying the windbox
-                lwz r0, 0x1960(r5) # hitlag multiplier
-                cmpwi r0, 0
-                bne lbl_800C3634
-                ResetHitlag:
-                    lfs f0, -0x7790(rtoc) # 1.0
-                    stfs f0, 0x1954(r5) # set freeze frames to 1.0
-                    stfs f0, 0x195C(r5) # reset hitlag frames to 1.0
 #                BranchToUnk:
 #                    %branchLink("0x8006D044") # Hitlag related functions for grab victims and EnterHitlag callbacks?
                 lbl_800C3634:
@@ -414,19 +397,6 @@ defineCodes:
             80077438 - this is where it spawns the gfx when you hit an invincible opponent
             - good spot for adding hitlag multipliers if I decided to do it for invincible hits ]#
 
-        # Hitlag multiplier mechanics patch for fighters
-        patchInsertAsm "8007db1c":
-            # fix for fighters only...
-            # TODO double check... should check if fighter is in hitlag... still has 1 frame of hitlag if fighter isn't in hitlag??? maybe not
-            # fixes a freeze glitch that occurs when a fighter is in hitlag but then gets hit with a move with 0 hitlag
-            # f1 = calculated hitlag frames
-            # if our calculated hitlag is less than 1, set it to 1
-            lfs f0, -0x7790(rtoc) # 1.0
-            fcmpo cr0, f1, f0
-            %`bge+`(Exit)
-            fmr f1, f0
-            Exit:
-                addi sp, sp, 64 # orig code line
 
         patchInsertAsm "801510d4":
 
@@ -1204,86 +1174,22 @@ defineCodes:
             OriginalExit:
                 lwz r5, 0x010C(r31)
 
-        # HURTBOX HIT - Character Hitbox - Attacker (Hitbox_MeleeAttackLogicOnPlayer)
-        patchInsertAsm "800771FC":
-            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
-            # r28 = defender data
-            # r27 = hit struct
-            # r26 = attacker data
-            # r24 has to be 0 to skip hitlag functions
-
-            # get ExtHit
-            mr r3, r26 # src data
-            mr r4, r27 # hit struct
-            li r5, 2324
-            li r6, 312
-            li r7, {ExtFighterDataOffset}
-            %branchLink("0x801510d8")
-            cmplwi r3, 0
-            beq Exit
-            # r3 = ExtHit
-            stw r3, 0x40(sp) # store ExtHit in stack for later use
-
-            lwz r25, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
-            cmpwi r25, 0
-            bne Exit
-            li r24, 0
-            Exit:
-                li r25, 0 # original code line
-
-        # HURTBOX HIT - Character Hitbox - Victim (Hitbox_MeleeAttackLogicOnPlayer)
-        patchInsertAsm "800772c0":
-            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
-            # r28 = defender data
-            # r27 = hit struct
-            # r26 = attacker data
-            # r24 has to be 0 to skip hitlag functions
-            lwz r3, 0x40(sp) # get ExtHit from our patch at 800771FC
-            cmplwi r3, 0
-            beq Exit
-            lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
-            cmpwi r0, 0
-            bne Exit
-            li r24, 0
-            lbz r3, 0x2219(r28)
-            rlwimi r3, r24, 2, 29, 29
-            stb r3, 0x2219(r28)
-            stw r24, 0x1954(r28) # set freeze frames to 0
-            stw r24, 0x195C(r28) # reset hitlag frames to 0
-            Exit:
-                lbz r0, 0x221C(r28)
-
-        # HURTBOX HIT - Article Hitbox - Attacker+Victim (Hitbox_ProjectileLogicOnPlayer)
-        patchInsertAsm "800781f0":
-            # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
-            # r28 = defender data
-            # r27 = ithit struct
-            # r26 = item attacker data
-            # r25 has to be 0 to skip hitlag functions
-
-            # get ExtHit
-            mr r3, r26 # src data
-            mr r4, r27 # hit struct
-            li r5, 1492
-            li r6, 316
-            li r7, {ExtItemDataOffset}
-            %branchLink("0x801510d8")
-            cmplwi r3, 0
-            beq Exit
-            # r3 = ExtHit
-
-            lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
-            cmpwi r0, 0
-            bne Exit
-            li r25, 0
-            # reset hitlag for the victim
-            lbz r3, 0x2219(r28)
-            rlwimi r3, r25, 2, 29, 29
-            stb r3, 0x2219(r28)
-            stw r25, 0x1954(r28) # set freeze frames to 0
-            stw r25, 0x195C(r28) # reset hitlag frames to 0
-            Exit:
-                lbz r0, 0x221C(r28)
+        # Patch PlayerThink_Shield/Damage Calculate Hitlag
+        # If calculated hitlag is < 1.0, skip going into hitlag which disables A/S/DI
+        # TODO what about this part that uses the calculate hitlag function?: 8008f018
+        patchInsertAsm "8006d708":
+            lfs f0, -0x7790(rtoc) # 1.0
+            fcmpo cr0, f1, f0
+            %`bge+`(OriginalExit)
+            # TODO add checks if callbacks are for SDI & ASDI functions?
+            # we set the callback ptrs to 0 because it's possible for an attacker who is stuck in hitlag from attacking something
+            # to be able to A/S/DI. In vBrawl, attackers hit by a move that does 0 hitlag does not reset their initial freeze frames but allows for only DI
+            li r3, 0
+            stw r3, 0x21D0(r30) # hitlag frame-per-frame cb
+            stw r3, 0x21D8(r30) # hitlag exit cb
+            %branch("0x8006d7e0") # skip set hitlag functions
+            OriginalExit:
+                stfs f1, 0x195C(r30)
 
         # Hitbox_MeleeLogicOnShield - Set Hit Vars
         patchInsertAsm "80076dec":

@@ -34,13 +34,6 @@ stfd f29, 0x00000028 (sp)
 stw r31, 0x00000024 (sp)
 lwz r5, 0x0000002C (r3)
 mr r31, r5
-lwz r0, 0x00001960(r5)
-cmpwi r0, 0
-bne lbl_800C3634
-ResetHitlag:
-lfs f0, 0xFFFF8870(rtoc)
-stfs f0, 0x00001954(r5)
-stfs f0, 0x0000195C(r5)
 lbl_800C3634:
 lwz r3, 0xFFFFAEB4(r13)
 lfs f0, 0x00000100(r3)
