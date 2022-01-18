@@ -1176,7 +1176,7 @@ defineCodes:
 
         # Patch PlayerThink_Shield/Damage Calculate Hitlag
         # If calculated hitlag is < 1.0, skip going into hitlag which disables A/S/DI
-        # TODO what about this part that uses the calculate hitlag function?: 8008f018
+        # TODO what about this part that uses the calculate hitlag function?: 8008f018 (related to pummel)
         patchInsertAsm "8006d708":
             lfs f0, -0x7790(rtoc) # 1.0
             fcmpo cr0, f1, f0
