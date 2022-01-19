@@ -78,7 +78,7 @@ const
 const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.6.2"
+    CodeVersion = "v1.6.3"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -1327,22 +1327,25 @@ defineCodes:
             %branchLink("0x801510dc") # TODO const...
             %branch("0x8007ab0c")
 
-        # Hitlag Function For Other Entities
+        # ItemThink_Shield/Damage Hitlag Function For Other Entities
+        # Patch Hitlag Multiplier
         patchInsertAsm "8026b454":
             # patch hitlag function used by other entities
             # r31 = itdata
             # f0 = floored hitlag frames
             lfs f1, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}(r31)
             fmuls f0, f0, f1 # calculated hitlag frames * multiplier
+            fctiwz f0, f0
 
-            # check if calculated hitlag is 0, then set it to a minimum of 1
-            lfs f1, -0x7790(rtoc) # 1.0
-            fcmpo cr0, f0, f1
-            %`bge+`(Exit)
-            fmr f0, f1 # set f0 to 1.0
-
-            Exit:
-                fctiwz f0, f0
+        # ItemThink_Shield/Damage After Hitlag Calculation
+        # If calculated hitlag is < 1.0, skip going into hitlag
+        patchInsertAsm "8026a5f8":
+            lfs f0, -0x7790(rtoc) # 1.0
+            fcmpo cr0, f1, f0
+            %`bge+`(OriginalExit)
+            %branchLink("0x8026a68c") # skip hitlag
+            OriginalExit:
+                lfs f0, 0xCBC(r31)
 
         # Reset Custom Variables for Items
         patchInsertAsm "80269cdc":
