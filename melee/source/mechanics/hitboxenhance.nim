@@ -242,45 +242,6 @@ defineCodes:
         description CodeDescription
         authors CodeAuthors
 
-        patchInsertAsm "801510d8":
-            # custom function that finds the appropriate ExtHit offset for a given hitbox struct ptr
-            cmpwi r4, 343
-            %`beq-`(OriginalExit)
-            # uses
-            # r3, r4, r5, r6, r7, r8
-            # inputs
-            # r3 = ft/itdata
-            # r4 = ft/ithit
-            # r5 = ft/ithit start offset relative to ft/itdata
-            # r6 = ft/ithit struct size
-            # r7 = ExtItem/Fighter offset
-            # outputs
-            # r3 = ptr to ExtHit
-            add r8, r3, r5
-            # r5 is now free to use
-            li r5, 0
-            b Comparison
-            Loop:
-                addi r5, r5, 1
-                cmpwi r5, 3
-                %`bgt-`(NotFound)
-                add r8, r8, r6
-                Comparison:
-                    cmplw r8, r4
-                    %`bne+`(Loop)
-            Found:
-                mulli r5, r5, {ExtHitSize}
-                add r5, r5, r7
-                add r5, r3, r5
-                mr r3, r5
-                blr
-            NotFound:
-                li r3, 0
-                blr
-
-            OriginalExit:
-                lfs f1, -0x5B40(rtoc)
-
         # Patch Disable Meteor Cancel
         patchInsertAsm "8007ac68":
             # r31 = fighter data
@@ -397,7 +358,6 @@ defineCodes:
             80077438 - this is where it spawns the gfx when you hit an invincible opponent
             - good spot for adding hitlag multipliers if I decided to do it for invincible hits ]#
 
-
         patchInsertAsm "801510d4":
 
             cmpwi r4, 343
@@ -405,64 +365,57 @@ defineCodes:
             
             # inputs
             # r3 = attacker gobj
-            # r4 = defender gobj
-            # r5 = attacker hit ft/it hit struct ptr
+            # r4 = attacker hit ft/it hit struct ptr
             # returns
             # r3 = ptr to ExtHit of attacker
             cmplwi r3, 0
             beq Invalid
             cmplwi r4, 0
             beq Invalid
-            cmplwi r5, 0
-            beq Invalid
 
-            %backup
-            mr r31, r3 # attacker gobj
-            mr r30, r4 # defender gobj
-            mr r29, r5 # attacker hit struct ptr
-            lwz r28, 0x2C(r3) # attacker data
-            lwz r27, 0x2C(r4) # defender data
+            li r0, 4 # set loop 4 times
+            mtctr r0
 
             # check attacker type
-            lhz r3, 0(r3)
-            cmplwi r3, 4 # fighter type
+            lhz r0, 0(r3)
+            lwz r3, 0x2C(r3) # fighter data
+            cmplwi r0, 4 # fighter type
             beq GetExtHitForFighter
-            cmplwi r3, 6 # item type
+            cmplwi r0, 6 # item type
             beq GetExtHitForItem
             b Invalid
 
             GetExtHitForItem:
-                li r3, 1492
-                li r4, 316
-                li r5, {ExtItemDataOffset}
+                addi r5, r3, 1492 # attacker data ptr + hit struct offset
+                addi r3, r3, {ExtItemDataOffset} # attacker data ptr + Exthit struct offset
+                li r0, 316
             b GetExtHit
 
             GetExtHitForFighter:
-                li r3, 2324
-                li r4, 312
-                li r5, {ExtFighterDataOffset}
+                addi r5, r3, 2324 # attacker data ptr + hit struct offset
+                addi r3, r3, {ExtFighterDataOffset} # attacker data ptr + Exthit struct offset
+                li r0, 312
 
             GetExtHit:
-                li r26, 4 # loop 4 times
-                mtctr r26
-                add r26, r28, r3 # attacker data ptr + hit struct offset
-                add r3, r28, r5 # attacker data ptr + Exthit struct offset
+                # uses
+                # r3 = points to ExtHit struct offset
+                # r4 = target hit struct ptr
+                # r5 = temp var holding our current hit struct ptr
+                # r0 = sizeof hit struct ptr
                 b Comparison
                 Loop:
-                    add r26, r26, r4 # point to next hit struct
+                    add r5, r5, r0 # point to next hit struct
                     addi r3, r3, {ExtHitSize} # point to next ExtHit struct
                     Comparison:
-                        cmplw r26, r29 # hit struct ptr != given hit struct ptr
+                        cmplw r5, r4 # hit struct ptr != given hit struct ptr
                         bdnzf eq, Loop
 
-#            cmplw r26, r29 # final check for hit struct ptrs
             beq Exit
         
             Invalid:
                 li r3, 0
 
             Exit:
-                %restore
                 blr
 
             OriginalExit:
@@ -483,8 +436,6 @@ defineCodes:
             mr r30, r3 # gobj
 
             # get ext hit struct
-            mr r5, r4
-            mr r4, r3
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
@@ -825,127 +776,94 @@ defineCodes:
             Exit:
                 %emptyBlock
 
-        # Use Weight of 100 for Knockback Calculation (ExtHit Flag)
+        # CalculateKnockback Patch Use Weight of 100 for Knockback Calculation (ExtHit Flag)
         patchInsertAsm "8007a14c":
             # r25 = defender data
             # r17 = hit struct?
             # r15 = attacker data
             # r27 = current char attr
             lwz r3, 0(r15)
-            lwz r4, 0(r25)
-            mr r5, r17 # hit struct
+            mr r4, r17 # hit struct
             %branchLink("0x801510d4")
-            cmplwi r3, 0
+            %`mr.`(r18, r3) # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
             lfs f4, 0x88(r27) # weight of defender
             beq Exit
             # r3 contains ExtHit offset
 
             lbz r4, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
-            beq NoSetWeight
+            %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
+            beq Exit
 
             UseSetWeight:
                 # if the 'Set Weight' flag is set, use a weight of 100 for the defender
                 lwz r3, -0x514C(r13)
                 lfs f4, 0x10C(r3) # uses same weight value from throws (100)
-                # also set the gravity and fall speed to Mario's values
-                bl Constants
-                mflr r3
-                # store gravity
-                lfs f0, 0(r3)
-                stfs f0, 0x5C(r27)
-                # store fall speed
-                lfs f0, 4(r3)
-                stfs f0, 0x60(r27)
-                # set our temp gravity and fall speed flag to true
-                li r3, 1
-                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                b Exit
-            
-            NoSetWeight:
-                # reset gravity and fall speed only if the temp flag is true
-                lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
-                beq Exit
-                # reset flag to 0
-                li r3, 0
-                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-
-                fmr f3, f1 # backup f1
-                mr r3, r25
-                %branchLink(CustomFuncResetGravityAndFallSpeed)
-                fmr f1, f3 # restore f1
-                b Exit
-
-            Constants:
-                blrl
-                %`.float`(0.095) # mario's gravity
-                %`.float`(1.7) # mario's fall speed
 
             Exit:
                 %emptyBlock
 
-        # Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        # CalculateKnockback Patch Set Weight to 100 for Knockback Calculation (ExtHit Flag)
         # Called when defender is attacked by an item
         patchInsertAsm "8007a270":
             # r25 = def data, is fighter
             # r15 = fighter attacker gobj
             lwz r3, 0x8(r19) # get item gobj attacker
-            lwz r4, 0(r25)
-            lwz r5, 0xC(r19) # get last hit
+            lwz r4, 0xC(r19) # get last hit
             %branchLink("0x801510d4")
-            cmplwi r3, 0
+            %`mr.`(r18, r3) # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
             lfs f22, 0x88(r27) # weight of defender
             beq Exit
             # r3 contains ExtHit offset
 
             lbz r4, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r4, r4, 0, 24, 24) # check 0x80
-            beq NoSetWeight
+            %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
+            beq Exit
 
             UseSetWeight:
                 # if the 'Set Weight' flag is set, use a weight of 100 for the defender
                 lwz r3, -0x514C(r13)
                 lfs f22, 0x10C(r3) # uses same weight value from throws (100)
-                # also set the gravity and fall speed to Mario's values
-                bl Constants
-                mflr r3
-                # store gravity
-                lfs f0, 0(r3)
-                stfs f0, 0x5C(r27)
-                # store fall speed
-                lfs f0, 4(r3)
-                stfs f0, 0x60(r27)
-                # set our temp gravity and fall speed flag to true
-                li r3, 1
-                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                b Exit
-            
-            NoSetWeight:
-                # reset gravity and fall speed only if the temp flag is true
-                lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
-                beq Exit
-                li r3, 0
-                lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                mr r3, r25
-                %branchLink(CustomFuncResetGravityAndFallSpeed)
-                b Exit
 
-            Constants:
-                blrl
-                %`.float`(0.095) # mario's gravity
-                %`.float`(1.7) # mario's fall speed
             Exit:
                 %emptyBlock
+
+        # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
+        # Called when defender is attacked by another fighter
+        patchInsertAsm "8007a1e4":
+            cmplwi r18, 0
+            beq Exit
+
+            lbz r0, {ExtHitFlags1Offset}(r18)
+            %`rlwinm.`(r0, r0, 0, ExtHitFlags1Flinchless)
+            beq Exit
+
+            %branch("0x8007a6a8") # skip gfx on hit
+            Exit:
+                stw r3, 0x22C(sp) # orig code line
+
+        # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
+        # Called when defender is attacked by an item
+        patchInsertAsm "8007a498":
+            cmplwi r18, 0
+            beq Exit
+
+            lbz r0, {ExtHitFlags1Offset}(r18)
+            %`rlwinm.`(r0, r0, 0, ExtHitFlags1Flinchless)
+            beq Exit
+
+            %branch("0x8007a6a8") # skip gfx on hit
+            Exit:
+                stw r3, 0x214(sp) # orig code line
+
+        # patchInsertAsm "801510d8":
+        #     cmpwi r4, 343
+        #     %`beq-`(OriginalExit)
+
+        #     Exit:
+        #         blr
+
+        #     OriginalExit:
+        #         lfs f1, -0x5B40(rtoc)
 
         # ASDI multiplier mechanics patch
         patchInsertAsm "8008e7a4":
@@ -1025,31 +943,15 @@ defineCodes:
             mr r26, r4
 
             # calculate ExtHit offset for given ft/it hit ptr
-            mr r3, r27 # src gobj
             bl IsItemOrFighter
             mr r25, r3 # backup source type
-            cmpwi r3, 1
-            beq SetupFighterVars
-            cmpwi r3, 2
-            bne Epilog
-
-            SetupItemVars:
-                li r5, 1492
-                li r6, 316
-                li r7, {ExtItemDataOffset}
-            b CalculateExtHitOffset
-
-            SetupFighterVars:
-                li r5, 2324
-                li r6, 312
-                li r7, {ExtFighterDataOffset}
 
             CalculateExtHitOffset:
-                mr r3, r31
+                mr r3, r27
                 mr r4, r29
-                %branchLink("0x801510d8")
+                %branchLink("0x801510d4")
             # r3 now has offset
-            cmpwi r3, 0
+            cmplwi r3, 0
             beq Epilog
 
             mr r28, r3 # ExtHit off
@@ -1130,6 +1032,43 @@ defineCodes:
                     rlwimi r0, r3, 0, {FlinchlessFlag}
                     stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
+            SetWeight:
+                # handles the setting and reseting of temp gravity & fall speed
+                lbz r3, {ExtHitFlags1Offset}(r28)
+                %`rlwinm.`(r3, r3, 0, ExtHitFlags1SetWeight)
+                beq ResetTempGravityFallSpeed # hit isn't set weight, check to reset vars
+
+                SetTempGravityFallSpeed:
+                    # hit is set weight, set temp vars
+                    bl Constants
+                    mflr r3
+                    addi r4, r30, 0x110 # ptr attributes of defender
+                    # set gravity
+                    lfs f0, 0(r3)
+                    stfs f0, 0x5C(r4)
+                    # set fall speed
+                    lfs f0, 4(r3)
+                    stfs f0, 0x60(r4)
+                    # set our temp gravity and fall speed flag to true
+                    li r3, 1
+                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    b StoreDisableMeteorCancel
+
+                ResetTempGravityFallSpeed:
+                    # reset gravity and fall speed only if the temp flag is true
+                    lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
+                    beq StoreDisableMeteorCancel
+                    li r3, 0
+                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    # call custom reset func
+                    mr r3, r30
+                    %branchLink(CustomFuncResetGravityAndFallSpeed)
+    
             StoreDisableMeteorCancel:
                 lbz r3, {ExtHitFlags1Offset}(r28)
                 %`rlwinm.`(r0, r3, 0, ExtHitFlags1DisableMeteorCancel)
@@ -1140,7 +1079,7 @@ defineCodes:
                     lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                     rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
                     stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                
+
             Epilog:
                 %restore
                 blr
@@ -1171,12 +1110,16 @@ defineCodes:
                 Result:
                     blr
 
+            Constants:
+                blrl
+                %`.float`(0.095) # mario's gravity
+                %`.float`(1.7) # mario's fall speed
+
             OriginalExit:
                 lwz r5, 0x010C(r31)
 
         # Patch PlayerThink_Shield/Damage Calculate Hitlag
         # If calculated hitlag is < 1.0, skip going into hitlag which disables A/S/DI
-        # TODO what about this part that uses the calculate hitlag function?: 8008f018 (related to pummel)
         patchInsertAsm "8006d708":
             lfs f0, -0x7790(rtoc) # 1.0
             fcmpo cr0, f1, f0
@@ -1191,21 +1134,27 @@ defineCodes:
             OriginalExit:
                 stfs f1, 0x195C(r30)
 
+        # Patch Damage_BranchToDamageHandler Calculate Hitlag for Pummels/Throw Related
+        # If calculated hitlag is < 1.0, skip going into hitlag
+        patchInsertAsm "8008f030":
+            lfs f0, -0x7790(rtoc) # 1.0
+            fcmpo cr0, f1, f0
+            %`bge+`(OriginalExit)
+            %branch("0x8008f078") # skip set hitlag functions
+            OriginalExit:
+                stfs f1, 0x195C(r27)            
+
         # Hitbox_MeleeLogicOnShield - Set Hit Vars
         patchInsertAsm "80076dec":
             # r31 = defender data
             # r30 = hit struct
             # r29 = src data
             # free regs to use: r0, f1, f0
-            mr r0, r3 # backup r3
-
-            mr r3, r29 # src data
+            # get ExtHit
+            lwz r3, 0(r29) # src gobj
             mr r4, r30 # hit struct
-            li r5, 2324
-            li r6, 312
-            li r7, {ExtFighterDataOffset}
-            %branchLink("0x801510d8")
-            cmpwi r3, 0
+            %branchLink("0x801510d4")
+            cmplwi r3, 0
             beq Exit
 
             # r3 = exthit
@@ -1214,22 +1163,19 @@ defineCodes:
 
             Exit:
                 # restore r3
-                mr r3, r0
+                lwz r3, 0x24(sp)
                 lwz r0, 0x30(r30) # original code line
 
         # Hitbox_ProjectileLogicOnShield - Set Hit Vars
-        patchInsertAsm "80077918":
+        patchInsertAsm "80077914":
             # r29 = defender data
             # r28 = hit struct
             # r27 = src data
             # free regs to use f1, f0
-            mr r3, r27 # src data
+            lwz r3, 0x4(r27) # src gobj
             mr r4, r28 # hit struct
-            li r5, 1492
-            li r6, 316
-            li r7, {ExtItemDataOffset}
-            %branchLink("0x801510d8")
-            cmpwi r3, 0
+            %branchLink("0x801510d4")
+            cmplwi r3, 0
             beq Exit
 
             # r3 = exthit
@@ -1237,9 +1183,7 @@ defineCodes:
             stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r29)
 
             Exit:
-                # restore r6
-                mr r6, r30
-                stw r0, 0x19B0(r29) # original code line
+                lwz r0, 0x30(r28) # original code line
         
         # COMMENTED OUT BELOW ARE CODES RELATING TO 0% HITLAG AGAINST SHIELDING OPPONENTS
         # # SHIELD HIT - Character Hitbox - Attacker+Victim
@@ -1411,7 +1355,6 @@ defineCodes:
             # reset custom vars to 0.0
             lfs f0, -0x33A8(rtoc) # 0.0, original code line
 
-
         # Init Default Values for ExtHit - Projectiles
         patchInsertAsm "802790f0":
             # r4 = hitbox id
@@ -1476,6 +1419,11 @@ defineCodes:
             # r30 = fighter data
             # reset vars to 0
 
+            # reset the following vars only if there isn't a grabbed_attacker ptr
+            lwz r0, 0x1A58(r30) # grab_attacker ptr
+            cmplwi r0, 0
+            bne Exit # if someone is grabbing us, don't reset the custom vars
+
             # reset flinchless flag to 0
             lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
             rlwimi r0, r3, 0, {FlinchlessFlag}
@@ -1487,10 +1435,12 @@ defineCodes:
             stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
-            stfs f1, 0x1838(r30) # original code line
             # reset vars to 1.0
             lfs f0, -0x7790(rtoc) # 1.0
             stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r30)
+
+            Exit:
+                stfs f1, 0x1838(r30) # original code line
 
         # Custom Non-Standalone Function For Initing Default Values in ExtHit
         patchInsertAsm "801510e4":

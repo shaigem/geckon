@@ -9,30 +9,16 @@ lwz r30, 0x0000002C(r4)
 mr r29, r5
 mr r27, r3
 mr r26, r4
-mr r3, r27
 bl IsItemOrFighter
 mr r25, r3
-cmpwi r3, 1
-beq SetupFighterVars
-cmpwi r3, 2
-bne Epilog
-SetupItemVars:
-li r5, 1492
-li r6, 316
-li r7, 4048
-b CalculateExtHitOffset
-SetupFighterVars:
-li r5, 2324
-li r6, 312
-li r7, 9248
 CalculateExtHitOffset:
-mr r3, r31
+mr r3, r27
 mr r4, r29
-lis r12, 0x801510d8 @h
-ori r12, r12, 0x801510d8 @l
+lis r12, 0x801510d4 @h
+ori r12, r12, 0x801510d4 @l
 mtctr r12
 bctrl
-cmpwi r3, 0
+cmplwi r3, 0
 beq Epilog
 mr r28, r3
 StoreHitlag:
@@ -88,6 +74,36 @@ WindboxSet:
 lbz r0, 9340(r30)
 rlwimi r0, r3, 0, 1
 stb r0, 9340(r30)
+SetWeight:
+lbz r3, 16(r28)
+rlwinm. r3, r3, 0, 128
+beq ResetTempGravityFallSpeed
+SetTempGravityFallSpeed:
+bl Constants
+mflr r3
+addi r4, r30, 0x00000110
+lfs f0, 0(r3)
+stfs f0, 0x0000005C(r4)
+lfs f0, 4(r3)
+stfs f0, 0x00000060(r4)
+li r3, 1
+lbz r0, 9340(r30)
+rlwimi r0, r3, 1, 2
+stb r0, 9340(r30)
+b StoreDisableMeteorCancel
+ResetTempGravityFallSpeed:
+lbz r3, 9340(r30)
+rlwinm. r3, r3, 0, 2
+beq StoreDisableMeteorCancel
+li r3, 0
+lbz r0, 9340(r30)
+rlwimi r0, r3, 1, 2
+stb r0, 9340(r30)
+mr r3, r30
+lis r12, 0x801510e8 @h
+ori r12, r12, 0x801510e8 @l
+mtctr r12
+bctrl
 StoreDisableMeteorCancel:
 lbz r3, 16(r28)
 rlwinm. r0, r3, 0, 4
@@ -126,5 +142,9 @@ beq Result
 li r3, 0
 Result:
 blr
+Constants:
+blrl
+.float 0.095
+.float 1.7
 OriginalExit:
 lwz r5, 0x0000010C(r31)

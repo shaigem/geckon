@@ -6,8 +6,6 @@ stwu r1, -(56 + 120)(r1)
 stmw r20, 0x00000008(r1)
 mr r31, r4
 mr r30, r3
-mr r5, r4
-mr r4, r3
 lis r12, 0x801510d4 @h
 ori r12, r12, 0x801510d4 @l
 mtctr r12
