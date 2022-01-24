@@ -1,5 +1,7 @@
 cmpwi r4, 343
 beq- OriginalExit
+cmplwi r3, 0
+beq EpilogReturn
 mflr r0
 stw r0, 0x00000004(r1)
 stwu r1, -(56 + 120)(r1)
@@ -119,6 +121,7 @@ lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
 addi r1, r1, 56 + 120
 mtlr r0
+EpilogReturn:
 blr
 CalculateHitlagMultiOffset:
 cmpwi r3, 1

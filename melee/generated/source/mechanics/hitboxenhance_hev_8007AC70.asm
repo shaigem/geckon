@@ -4,4 +4,4 @@ beq NormalCheck
 li r3, 0
 blr
 NormalCheck:
-cmplwi r3, 361
+lwz r4, 0xFFFFAEB4(r13)

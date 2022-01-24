@@ -243,7 +243,7 @@ defineCodes:
         authors CodeAuthors
 
         # Patch Disable Meteor Cancel
-        patchInsertAsm "8007ac68":
+        patchInsertAsm "8007ac70":
             # r31 = fighter data
             lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
             %`rlwinm.`(r0, r0, 0, DisableMeteorCancelFlag)
@@ -251,7 +251,7 @@ defineCodes:
             li r3, 0 # cannot meteor cancel
             blr
             NormalCheck:
-                cmplwi r3, 361 # original code line
+                lwz r4, -0x514C(r13) # original code line
 
         # Damage_BranchToDamageHandler - Patch Custom Windbox Function
         patchInsertAsm "8008edb0":
@@ -928,6 +928,10 @@ defineCodes:
             # r3 = source gobj
             # r4 = defender gobj
             # r5 = source hit ft/it hit struct ptr
+            # source cannot be a null ptr
+            cmplwi r3, 0
+            beq EpilogReturn
+
             %backup
             # backup regs
             # r31 = source data
@@ -1082,7 +1086,8 @@ defineCodes:
 
             Epilog:
                 %restore
-                blr
+                EpilogReturn:
+                    blr
 
             CalculateHitlagMultiOffset:
                 cmpwi r3, 1
