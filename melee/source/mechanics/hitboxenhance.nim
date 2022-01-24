@@ -444,7 +444,12 @@ defineCodes:
             # r3 = ft/it gobj
             # r4 = ft/it hit struct
 
-            %backup
+            # prolog
+            mflr r0
+            stw r0, 0x4(sp)
+            stwu sp, -0x30(sp)
+            stw r31, 0x2C(sp)
+            stw r30, 0x28(sp)
 
             mr r31, r4 # hit struct
             mr r30, r3 # gobj
@@ -472,33 +477,41 @@ defineCodes:
             SetForFighter:
                 li r0, 2 # TODO should this be 4?
                 stw r0, 0(r31)
-        
+
+            # 0xC(sp) = initial world pos x, y, z
+            # 0x18(sp) = position with offset
             GetInitialPos:
                 # first, get initial position with offset of 0
                 lwz r3, 0x48(r31) # bone jobj
                 li r4, 0 # offset ptr
-                addi r5, sp, {BackupFreeSpaceOffset} # result
+                addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
+            
             # next, get position WITH offset
             lwz r3, 0x10(r31)
             lwz r4, 0x14(r31)
-            stw r3, {BackupFreeSpaceOffset + 0xC}(sp)
-            stw r4, {BackupFreeSpaceOffset + 0xC + 0x4}(sp)
+            stw r3, 0x18(sp) # store x
+            stw r4, 0x1C(sp) # store y
             lwz r4, 0x18(r31)
-            stw r4, {BackupFreeSpaceOffset + 0xC + 0x8}(sp)
+            stw r4, 0x20(sp) # store z
             lwz r3, 0x48(r31) # bone jobj
-            addi r4, sp, {BackupFreeSpaceOffset + 0xC} # offset ptr
-            addi r5, sp, {BackupFreeSpaceOffset + 0xC}
+            addi r4, sp, 0x18 # offset ptr
+            addi r5, sp, 0x18
             %branchLink("0x8000B1CC") # JObj_GetWorldPos
 
             # now finally call the interop func
-            addi r4, sp, {BackupFreeSpaceOffset}
-            addi r5, sp, {BackupFreeSpaceOffset + 0xC}
+            addi r4, sp, 0xC
+            addi r5, sp, 0x18
             mr r6, r31
             %branchLink("0x80275830")
 
             Exit:
-                %restore
+                # epilog
+                lwz r0, 0x34(sp)
+                lwz r31, 0x2C(sp)
+                lwz r30, 0x28(sp)
+                addi sp, sp, 0x30
+                mtlr r0
                 blr
 
             OriginalExit:
