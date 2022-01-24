@@ -11,8 +11,6 @@ lwz r30, 0x0000002C(r4)
 mr r29, r5
 mr r27, r3
 mr r26, r4
-bl IsItemOrFighter
-mr r25, r3
 CalculateExtHitOffset:
 mr r3, r27
 mr r4, r29
@@ -23,29 +21,35 @@ bctrl
 cmplwi r3, 0
 beq Epilog
 mr r28, r3
-StoreHitlag:
-lfs f0, 0(r28)
-mr r3, r25
-bl CalculateHitlagMultiOffset
-add r4, r31, r3
+mr r3, r27
+bl IsItemOrFighter
+mr. r25, r3
+beq Epilog
 mr r3, r26
 bl IsItemOrFighter
-mr r24, r3
-bl CalculateHitlagMultiOffset
-add r5, r30, r3
-Hitlag:
+mr. r24, r3
+beq Epilog
+StoreHitlag:
+lfs f0, 0(r28)
+cmpwi r25, 1
+addi r3, r31, 4128
+bne StoreHitlagMultiForAttacker
+addi r3, r31, 0x00001960
+StoreHitlagMultiForAttacker:
+stfs f0, 0(r3)
+cmpwi r24, 1
+addi r3, r30, 4128
+bne ElectricHitlagCalculate
+addi r3, r30, 0x00001960
+ElectricHitlagCalculate:
 lwz r0, 0x00000030(r29)
 cmplwi r0, 2
-bne+ NotElectric
-lwz r3, 0xFFFFAEB4(r13)
-lfs f1, 0x000001A4(r3)
-fmuls f1, f1, f0
-stfs f1, 0(r5)
-b UpdateHitlagForAttacker
-NotElectric:
-stfs f0, 0(r5)
-UpdateHitlagForAttacker:
-stfs f0, 0(r4)
+bne+ StoreHitlagMultiForDefender
+lwz r4, 0xFFFFAEB4(r13)
+lfs f1, 0x000001A4(r4)
+fmuls f0, f1, f0
+StoreHitlagMultiForDefender:
+stfs f0, 0(r3)
 cmpwi r24, 1
 bne Epilog
 StoreHitstunModifier:
@@ -122,17 +126,6 @@ lwz r0, (56 + 0x00000004 + 120)(r1)
 addi r1, r1, 56 + 120
 mtlr r0
 EpilogReturn:
-blr
-CalculateHitlagMultiOffset:
-cmpwi r3, 1
-beq Return1960
-cmpwi r3, 2
-bne Exit
-li r3, 4128
-b Exit
-Return1960:
-li r3, 0x00001960
-Exit:
 blr
 IsItemOrFighter:
 lhz r0, 0(r3)

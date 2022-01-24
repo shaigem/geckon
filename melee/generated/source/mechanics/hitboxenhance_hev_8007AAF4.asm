@@ -5,7 +5,4 @@ lis r12, 0x801510dc @h
 ori r12, r12, 0x801510dc @l
 mtctr r12
 bctrl
-lis r12, 0x8007ab0c @h
-ori r12, r12, 0x8007ab0c @l
-mtctr r12
-bctr
+li r0, 0

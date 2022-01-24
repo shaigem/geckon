@@ -799,9 +799,6 @@ defineCodes:
             mr r26, r4
 
             # calculate ExtHit offset for given ft/it hit ptr
-            bl IsItemOrFighter
-            mr r25, r3 # backup source type
-
             CalculateExtHitOffset:
                 mr r3, r27
                 mr r4, r29
@@ -809,48 +806,53 @@ defineCodes:
             # r3 now has offset
             cmplwi r3, 0
             beq Epilog
-
             mr r28, r3 # ExtHit off
 
             # r25 = source type
             # r24 = defender type
             # r28 = ExtHit offset
+            mr r3, r27
+            bl IsItemOrFighter
+            %`mr.`(r25, r3) # backup source type
+            beq Epilog
+
+            mr r3, r26
+            bl IsItemOrFighter
+            %`mr.`(r24, r3) # backup def type
+            beq Epilog
 
             StoreHitlag:
                 lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier
-                # calculate hitlag multiplier offsets depending if it's a item or fighter
-                # for src
-                mr r3, r25
-                bl CalculateHitlagMultiOffset
-                add r4, r31, r3
 
-                # for def
-                mr r3, r26
-                bl IsItemOrFighter
-                mr r24, r3 # backup def type
-                bl CalculateHitlagMultiOffset
-                add r5, r30, r3
-               
-                Hitlag:
-                    # check if hit was electric
+                # store hitlag multi for attacker depending on entity type
+                cmpwi r25, 1
+                addi r3, r31, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
+                bne StoreHitlagMultiForAttacker
+                addi r3, r31, 0x1960
+                
+                StoreHitlagMultiForAttacker:
+                    stfs f0, 0(r3)
+
+                # store hitlag multi for defender depending on entity type                
+                cmpwi r24, 1
+                addi r3, r30, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
+                bne ElectricHitlagCalculate
+                addi r3, r30, 0x1960
+
+                # defenders can experience 1.5x more hitlag if hit by an electric attack
+                ElectricHitlagCalculate:
                     lwz r0, 0x30(r29) # dmg hit attribute
                     cmplwi r0, 2 # electric
-                    %`bne+`(NotElectric)
+                    %`bne+`(StoreHitlagMultiForDefender) # not electric, just store the orig multiplier
                     # Electric
-                    lwz r3, -0x514C(r13) # PlCo values
-                    lfs f1, 0x1A4(r3) # 1.5 electric hitlag multiplier
-                    fmuls f1, f1, f0 # 1.5 * multiplier
+                    lwz r4, -0x514C(r13) # PlCo values
+                    lfs f1, 0x1A4(r4) # 1.5 electric hitlag multiplier
+                    fmuls f0, f1, f0 # 1.5 * multiplier
                     # store extra hitlag for DEFENDER ONLY in Melee
-                    # TODO idk if i should check if src & defender data is valid before setting...
-                    stfs f1, 0(r5) # store extra hitlag for defender
-                    b UpdateHitlagForAttacker
 
-                    NotElectric:
-                            stfs f0, 0(r5) # store hitlag multi for defender
+                StoreHitlagMultiForDefender:
+                    stfs f0, 0(r3)
 
-                            UpdateHitlagForAttacker:
-                                stfs f0, 0(r4) # store hitlag multi for source
-                                
             # now we store other variables for defenders who are fighters ONLY
             cmpwi r24, 1 # fighter
             bne Epilog # not fighter, skip this section      
@@ -939,18 +941,6 @@ defineCodes:
             Epilog:
                 %restore
                 EpilogReturn:
-                    blr
-
-            CalculateHitlagMultiOffset:
-                cmpwi r3, 1
-                beq Return1960
-                cmpwi r3, 2
-                bne Exit
-                li r3, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
-                b Exit
-                Return1960:
-                    li r3, 0x1960
-                Exit:
                     blr
 
             IsItemOrFighter:
@@ -1182,7 +1172,7 @@ defineCodes:
             mr r4, r30
             lwz r5, 0xC(r19) # ptr fthit of source
             %branchLink("0x801510dc") # TODO const...
-            %branch("0x8007ab0c")
+            li r0, 0 # skip the setting of electric hitlag multiplier
 
         # ItemThink_Shield/Damage Hitlag Function For Other Entities
         # Patch Hitlag Multiplier
