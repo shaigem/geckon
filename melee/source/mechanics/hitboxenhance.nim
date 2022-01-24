@@ -213,7 +213,8 @@ const
 
 # New variable pointer offsets for FIGHTERS only
 const
-    SDIMultiplierOffset = ExtHit3Offset + ExtHitSize # float
+    ExtThrowHit0Offset = ExtHit3Offset + ExtHitSize
+    SDIMultiplierOffset = ExtThrowHit0Offset + ExtHitSize # float
     HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
     ShieldstunMultiplierOffset = HitstunModifierOffset + 0x4 # float
 
@@ -221,6 +222,7 @@ const
     FlinchlessFlag = 0x1
     TempGravityFallSpeedFlag = 0x2
     DisableMeteorCancelFlag = 0x4
+    ForceThrownHitlag = 0x8
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
@@ -236,6 +238,18 @@ const
 
 proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
 proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
+
+func getExtHitOffset(regFighterData, regHitboxId: Register; extraDataOffset: int|Register; regOutput: Register = r3): string =
+    if regOutput == regFighterData:
+        raise newException(ValueError, "output register (" & $regOutput & ") cannot be the same as the fighter data register")
+    result = ppc:
+        mulli {regOutput}, {regHitboxId}, {ExtHitSize} # hitbox id * ext hit size
+        block:
+            if extraDataOffset is Register:
+                ppc: add {regOutput}, {regOutput}, {extraDataOffset}
+            else:
+                ppc: addi {regOutput}, {regOutput}, {extraDataOffset}
+        add {regOutput}, {regFighterData}, {regOutput}
 
 defineCodes:
     createCode CodeName:
@@ -895,6 +909,50 @@ defineCodes:
             fmuls f4, f4, f0 # 1.5 * our multiplier
             fsubs f2, f2, f3 # orig code line
 
+        # PlayerThink_Shield/Damage Patch - Apply Hitlag on Thrown Opponents
+        patchInsertAsm "8006d6e0":
+            # r30 = fighter data
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            %`rlwinm.`(r0, r0, 0, ForceThrownHitlag)
+            beq OriginalExit
+            lwz r29, 0x183C(r30) # thrown damage applied
+            OriginalExit:
+                mr r3, r30 # orig code line
+
+        # Throw_ThrowVictim Patch - Set ExtHit Vars & Hitlag on Thrown Victim
+        patchInsertAsm "800de28c":
+            # r30 = grabbed victim fighter data
+            # r28 = grabbed source fighter data
+            # r31 = ExtHit
+            lwz r3, 0(r28)
+            lwz r4, 0(r30)
+            addi r5, r28, 0xDF4 # source throw hitbox
+            addi r6, r28, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            %branchLink("0x801510dc")
+
+            # do hitlag vibration
+            lfs f1, 0x1960(r30) # victim's hitlag multiplier
+            mr r3, r30
+            lwz r4, 0xE24(r28) # hitbox attribute
+            lwz r5, 0xDFC(r28) # hitbox dmg
+            lwz r6, 0x10(r30) # state id of victim
+            %branchLink("0x80090594") # hitlag calculate
+
+            # check if there are hitlag vibration frames
+            # if there is vibration, the thrown victim should experience hitlag
+            lhz r0, 0x18FA(r30) # model shift frames
+            cmplwi r0, 0
+            beq Exit
+
+            # enable flag that forces hitlag for the thrown victim
+            li r3, 1
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            rlwimi r0, r3, 3, {ForceThrownHitlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            
+            Exit:
+                lwz r0, 0x94(sp) # orig code line
+
         # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
         patchInsertAsm "801510dc":
             cmpwi r4, 343
@@ -1292,6 +1350,7 @@ defineCodes:
             lfs f0, -0x33A8(rtoc) # 0.0, original code line
 
         # Init Default Values for ExtHit - Projectiles
+        # SubactionEvent_0x2C_HitboxProjectile_StoreInfoToDataOffset
         patchInsertAsm "802790fc":
             # r4 = hitbox id
             # r30 = item data??
@@ -1303,6 +1362,7 @@ defineCodes:
                 lwz r0, 0(r29) # orig code line
 
         # Init Default Values for ExtHit - Melee
+        # SubactionEvent_0x2C_HitboxMelee_StoreInfoToDataOffset
         patchInsertAsm "80071288":
             # r0 = hitbox ID
             # r31 = fighter data
@@ -1312,6 +1372,25 @@ defineCodes:
             %branchLink(CustomFunctionInitDefaultEventVars)
             Exit:
                 lwz r0, 0(r30) # orig code line
+
+        # Init Default Values for ExtHit - Throws
+        # SubactionEvent_0x88_Throw
+        patchInsertAsm "80071e48":
+            # r0 = hitbox ID
+            # r6 = fighter data
+            # only throws are supported, release hitboxes are not
+            cmplwi r0, 1 # throw type = Release
+            bge Exit
+            # reset ExtHit vars
+            addi r3, r6, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            %branchLink(CustomFunctionInitDefaultEventVars)
+            # r3 still contains ExtHit
+            # r0 contains 0
+            # default hitlag multiplier for all throws is 0x
+            stw r0, {ExtHitHitlagOffset}(r3)
+
+            Exit:
+                addi r3, r31, 0 # orig code line
 
         # Reset Custom ExtFighterData vars that are involved at the end of Hitlag for Fighters
         patchInsertAsm "8006d1d8":
@@ -1352,6 +1431,11 @@ defineCodes:
             rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
             stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
+            # reset throw hitlag flag to 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            rlwimi r0, r3, 3, {ForceThrownHitlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+
             # reset hitstun modifier to 0
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
 
@@ -1364,6 +1448,8 @@ defineCodes:
 
         # Custom Non-Standalone Function For Initing Default Values in ExtHit
         patchInsertAsm "801510e4":
+            # inputs
+            # r3 = ExtHit
             # TODO samus create hitbox?
             cmpwi r4, 343
             %`beq-`(OriginalExit)
