@@ -710,7 +710,27 @@ defineCodes:
             Exit:
                 %emptyBlock
 
-        # CalculateKnockback Patch Use Weight of 100 for Knockback Calculation (ExtHit Flag)
+        # patchInsertAsm "801510d8":
+        #     cmpwi r4, 343
+        #     %`beq-`(OriginalExit)
+
+        #     # inputs
+        #     # r3 = attacker gobj
+        #     # r4 = attacker hit struct
+        #     # r25 = defender data
+        #     %backup
+
+        #     %branchLink("0x801510D4")
+
+        #     Exit:
+        #         %restore
+        #         blr
+
+        #     OriginalExit:
+        #         lfs f1, -0x5B40(rtoc)
+
+        # CalculateKnockback Patch Precalculation
+        # Called when defender is attacked by another fighter
         patchInsertAsm "8007a14c":
             # r25 = defender data
             # r17 = hit struct?
@@ -723,6 +743,7 @@ defineCodes:
             lfs f4, 0x88(r27) # weight of defender
             beq Exit
             # r3 contains ExtHit offset
+            stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             lbz r4, {ExtHitFlags1Offset}(r3)
             %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
@@ -732,11 +753,10 @@ defineCodes:
                 # if the 'Set Weight' flag is set, use a weight of 100 for the defender
                 lwz r3, -0x514C(r13)
                 lfs f4, 0x10C(r3) # uses same weight value from throws (100)
-
             Exit:
                 %emptyBlock
 
-        # CalculateKnockback Patch Set Weight to 100 for Knockback Calculation (ExtHit Flag)
+        # CalculateKnockback Patch Precalculation
         # Called when defender is attacked by an item
         patchInsertAsm "8007a270":
             # r25 = def data, is fighter
@@ -748,6 +768,7 @@ defineCodes:
             lfs f22, 0x88(r27) # weight of defender
             beq Exit
             # r3 contains ExtHit offset
+            stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             lbz r4, {ExtHitFlags1Offset}(r3)
             %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
@@ -761,43 +782,67 @@ defineCodes:
             Exit:
                 %emptyBlock
 
-        # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
-        # Called when fighter defender is attacked by another fighter
-        patchInsertAsm "8007a1e4":
-            cmplwi r18, 0
-            beq Exit
-
-            lbz r0, {ExtHitFlags1Offset}(r18)
-            %`rlwinm.`(r0, r0, 0, ExtHitFlags1Flinchless)
-            beq Exit
-
-            %branch("0x8007a6a8") # skip gfx on hit
-            Exit:
-                stw r3, 0x22C(sp) # orig code line
-
-        # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
-        # Called when fighter defender is attacked by an item
-        patchInsertAsm "8007a498":
-            cmplwi r18, 0
-            beq Exit
-
-            lbz r0, {ExtHitFlags1Offset}(r18)
-            %`rlwinm.`(r0, r0, 0, ExtHitFlags1Flinchless)
-            beq Exit
-
-            %branch("0x8007a6a8") # skip gfx on hit
-            Exit:
-                stw r3, 0x214(sp) # orig code line
-
-        # patchInsertAsm "801510d8":
-        #     cmpwi r4, 343
-        #     %`beq-`(OriginalExit)
-
-        #     Exit:
-        #         blr
-
+        # # Hitbox_ItemLogicOnPlayer Patch for Skipping On Hit GFX for Windboxes
+        # # Called when fighter defender is attacked by another fighter
+        # patchInsertAsm "80078538":
+        #     # actually this patch works for fighter on fighter
+        #     # doesn't have to be item on player
+        #     lwz r3, 0x2C(r3)
+        #     lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r3)
+        #     %`rlwinm.`(r0, r0, 0, FlinchlessFlag)
+        #     beq OriginalExit # not flinchless, show GFX
+        #     blr
         #     OriginalExit:
-        #         lfs f1, -0x5B40(rtoc)
+        #         lwz r3, 0(r3) # restore r3
+        #         mflr r0 # orig code line
+
+        # CalculateKnockback patch for setting hit variables that affect the defender and attacker after all calculations are done
+        patchInsertAsm "8007aaf4":
+            # 0x90 of sp contains calculated ExtHit
+            # r12 = source ftdata
+            # r25 = defender ftdata
+            # r31 = ptr ft hit
+            # r30 = gobj of defender
+            # r4 = gobj of src
+            lwz r3, 0x8(r19)
+            mr r4, r30
+            lwz r5, 0xC(r19) # ptr fthit of source
+            lwz r6, 0x90(sp)
+            %branchLink("0x801510dc") # TODO const...
+            li r0, 0 # skip the setting of electric hitlag multiplier
+
+        # Hitbox Entity Vs Melee - Set Variables
+        patchInsertAsm "802705ac":
+            # eg. when a player hits an item with melee
+            # r30 = itdata
+            # r26 = fthit
+            # r28 = attacker data ptr
+            # r24 = gobj of itdata
+            # r29 = gobj of attacker
+            mr r3, r29 # src
+            mr r4, r24 # def
+            mr r5, r26 # ithit
+            li r6, 0
+            %branchLink("0x801510dc")
+            Exit:
+                lwz r0, 0xCA0(r30) # original code line
+
+        # 8026fe68 - proj vs proj 
+        # Hitbox Entity Vs Projectiles - Set Variables
+        patchInsertAsm "80270bb8":
+            # eg. when a player hits an item (eg. goomba) with projectile
+            # r31 = itdata
+            # r19 = hit struct
+            # r26 = gobj of defender
+            # r30 = gobj of attacker
+            mr r3, r30 # atk
+            mr r4, r26 # def
+            mr r5, r19 # ithit
+            li r6, 0
+            %branchLink("0x801510dc")
+            Exit:
+                lwz r0, 0xCA0(r31) # original code line
+
 
         # ASDI multiplier mechanics patch
         patchInsertAsm "8008e7a4":
@@ -862,6 +907,7 @@ defineCodes:
             # r3 = source gobj
             # r4 = defender gobj
             # r5 = source hit ft/it hit struct ptr
+            # r6 = optional calculated ExtHit
             # source cannot be a null ptr
             cmplwi r3, 0
             beq EpilogReturn
@@ -880,6 +926,10 @@ defineCodes:
             mr r27, r3
             mr r26, r4
 
+            # if ExtHit was already given to us, don't calculate ExtHit again
+            %`mr.`(r28, r6)
+            bne CalculateTypes
+
             # calculate ExtHit offset for given ft/it hit ptr
             CalculateExtHitOffset:
                 mr r3, r27
@@ -890,18 +940,19 @@ defineCodes:
             beq Epilog
             mr r28, r3 # ExtHit off
 
-            # r25 = source type
-            # r24 = defender type
-            # r28 = ExtHit offset
-            mr r3, r27
-            bl IsItemOrFighter
-            %`mr.`(r25, r3) # backup source type
-            beq Epilog
+            CalculateTypes:
+                # r25 = source type
+                # r24 = defender type
+                # r28 = ExtHit offset
+                mr r3, r27
+                bl IsItemOrFighter
+                %`mr.`(r25, r3) # backup source type
+                beq Epilog
 
-            mr r3, r26
-            bl IsItemOrFighter
-            %`mr.`(r24, r3) # backup def type
-            beq Epilog
+                mr r3, r26
+                bl IsItemOrFighter
+                %`mr.`(r24, r3) # backup def type
+                beq Epilog
 
             StoreHitlag:
                 lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier
@@ -1208,49 +1259,6 @@ defineCodes:
         #         # restore r6
         #         mr r6, r30
         #         stw r0, 0x19B0(r29) # original code line
-
-        # Hitbox Entity Vs Melee - Set Variables
-        patchInsertAsm "802705ac":
-            # eg. when a player hits an item with melee
-            # r30 = itdata
-            # r26 = fthit
-            # r28 = attacker data ptr
-            # r24 = gobj of itdata
-            # r29 = gobj of attacker
-            mr r3, r29 # src
-            mr r4, r24 # def
-            mr r5, r26 # ithit
-            %branchLink("0x801510dc")
-            Exit:
-                lwz r0, 0xCA0(r30) # original code line
-
-        # 8026fe68 - proj vs proj 
-        # Hitbox Entity Vs Projectiles - Set Variables
-        patchInsertAsm "80270bb8":
-            # eg. when a player hits an item (eg. goomba) with projectile
-            # r31 = itdata
-            # r19 = hit struct
-            # r26 = gobj of defender
-            # r30 = gobj of attacker
-            mr r3, r30 # atk
-            mr r4, r26 # def
-            mr r5, r19 # ithit
-            %branchLink("0x801510dc")
-            Exit:
-                lwz r0, 0xCA0(r31) # original code line
-
-        # CalculateKnockback patch for setting hit variables that affect the defender and attacker
-        patchInsertAsm "8007aaf4":
-            # r12 = source ftdata
-            # r25 = defender ftdata
-            # r31 = ptr ft hit
-            # r30 = gobj of defender
-            # r4 = gobj of src
-            lwz r3, 0x8(r19)
-            mr r4, r30
-            lwz r5, 0xC(r19) # ptr fthit of source
-            %branchLink("0x801510dc") # TODO const...
-            li r0, 0 # skip the setting of electric hitlag multiplier
 
         # ItemThink_Shield/Damage Hitlag Function For Other Entities
         # Patch Hitlag Multiplier

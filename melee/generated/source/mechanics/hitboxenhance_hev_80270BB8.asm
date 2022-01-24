@@ -1,6 +1,7 @@
 mr r3, r30
 mr r4, r26
 mr r5, r19
+li r6, 0
 lis r12, 0x801510dc @h
 ori r12, r12, 0x801510dc @l
 mtctr r12

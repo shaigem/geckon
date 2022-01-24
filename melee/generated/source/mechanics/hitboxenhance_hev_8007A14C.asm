@@ -7,6 +7,7 @@ bctrl
 mr. r18, r3
 lfs f4, 0x00000088(r27)
 beq Exit
+stw r3, 0x00000090(sp)
 lbz r4, 16(r3)
 rlwinm. r4, r4, 0, 128
 beq Exit
