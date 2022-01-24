@@ -101,10 +101,6 @@ ResetTempGravityFallSpeed:
 lbz r3, 9340(r30)
 rlwinm. r3, r3, 0, 2
 beq StoreDisableMeteorCancel
-li r3, 0
-lbz r0, 9340(r30)
-rlwimi r0, r3, 1, 2
-stb r0, 9340(r30)
 mr r3, r30
 lis r12, 0x801510e8 @h
 ori r12, r12, 0x801510e8 @l

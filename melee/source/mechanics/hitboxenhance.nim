@@ -523,18 +523,20 @@ defineCodes:
             Exit:
                 lwz r0, 0(r29)
         
-        # Function for Resetting Gravity and Fall Speed
+        # Function for Resetting Temp Gravity and Fall Speed
         patchInsertAsm "801510e8":
             cmpwi r4, 343
             %`beq-`(OriginalExit)
             # inputs
             # r3 = fighter data
-
-            stwu sp, -0x20(sp)
+            mflr r0
+            stw r0, 0x4(sp)
+            stwu sp, -0x38(sp)
             stw r31, 0x1C(sp)
             # r31 = fighter data
             mr r31, r3
-            # reset gravity and fall speed
+
+            # first, reset gravity and fall speed to original attributes
             lwz r3, 0x10C(r3) # FtData
             lwz r3, 0(r3) # ptr to common attributes
             # reset gravity
@@ -544,55 +546,140 @@ defineCodes:
             lfs f0, 0x60(r3)
             stfs f0, 0x170(r31)
 
+            # reset temp flag to 0
+            li r3, 0
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
+            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+
             # now restore other modifiers to gravity + fall speed
 
-            # item-related modifiers like bunny hood
-            lwz r0, 0x197C(r31)
-            cmplwi r0, 0
-            beq Idk1
-            lwz r3, -0x5180(r13)
-            
-            lfs f1, 0x016C(r31)
-            lfs f0, 0x0020(r3)
-            fmuls f0, f1, f0
-            stfs f0, 0x016C(r31)
+            # Scale Check - Super/Posion Mushroom Attribute Changes for Gravity + Fall Speed
+            lfs f0, -0x6A7C(rtoc) # 1.0
+            lfs f1, 0x38(r31) # scale y
+            fcmpu cr0, f0, f1
+            beq CheckOtherModifiers
 
-            lfs f1, 0x0170(r31)
-            lfs f0, 0x0024(r3)
-            fmuls f0, f1, f0
-            stfs f0, 0x0170(r31)
+            # calculate gravity for scale
+            addi r4, r31, 0x16C
+            li r3, 0x30
+            bl CalculateForScale
 
-            Idk1:
-                lbz r0, 0x2223(r31)
-                %`rlwinm.`(r0, r0, 0, 31, 31) # 0x1
-                beq Idk2
-                lwz r3, -0x5184(r13)
+            # calculate fall speed for scale
+            addi r4, r31, 0x170
+            li r3, 0x34
+            bl CalculateForScale
 
-                lfs f1, 0x016C(r31)
-                lfs f0, 0xC(r3)
-                fmuls f0, f1, f0
-                stfs f0, 0x016C(r31)
+            # other modifiers such as bunny hoods, metal box & low gravity mode
+            CheckOtherModifiers:
 
-                lfs f1, 0x0170(r31)
-                lfs f0, 0x10(r3)
-                fmuls f0, f1, f0
-                stfs f0, 0x0170(r31)
+                BunnyHoodCheck:
+                    lwz r0, 0x197C(r31) # wearing bunny hood?
+                    cmplwi r0, 0
+                    beq MetalBoxCheck
+                    lwz r3, -0x5180(r13)
+                    
+                    lfs f1, 0x016C(r31)
+                    lfs f0, 0x0020(r3)
+                    fmuls f0, f1, f0
+                    stfs f0, 0x016C(r31)
 
-            Idk2:
-                lbz r0, 0x2229(r31)
-                %`rlwinm.`(r0, r0, 26, 31, 31) # 0x40
-                beq Epilog
-                lwz r3, -0x5188(r13)
+                    lfs f1, 0x0170(r31)
+                    lfs f0, 0x0024(r3)
+                    fmuls f0, f1, f0
+                    stfs f0, 0x0170(r31)
 
-                lfs f1, 0x016C(r31)
-                lfs f0, 0(r3)
-                fmuls f0, f1, f0
-                stfs f0, 0x016C(r31)
+                MetalBoxCheck:
+                    lbz r0, 0x2223(r31)
+                    %`rlwinm.`(r0, r0, 0, 31, 31) # 0x1, wearing metal box?
+                    beq LowGravityCheck
+                    lwz r3, -0x5184(r13)
+
+                    lfs f1, 0x016C(r31)
+                    lfs f0, 0xC(r3)
+                    fmuls f0, f1, f0
+                    stfs f0, 0x016C(r31)
+
+                    lfs f1, 0x0170(r31)
+                    lfs f0, 0x10(r3)
+                    fmuls f0, f1, f0
+                    stfs f0, 0x0170(r31)
+
+                LowGravityCheck:
+                    lbz r0, 0x2229(r31)
+                    %`rlwinm.`(r0, r0, 26, 31, 31) # 0x40, low gravity mode?
+                    beq Epilog
+                    lwz r3, -0x5188(r13)
+
+                    lfs f1, 0x016C(r31)
+                    lfs f0, 0(r3)
+                    fmuls f0, f1, f0
+                    stfs f0, 0x016C(r31)
 
             Epilog:
+                lwz r0, 0x3C(sp)
                 lwz r31, 0x1C(sp)
-                addi sp, sp, 0x20
+                addi sp, sp, 0x38
+                mtlr r0
                 blr
+
+            CalculateForScale:
+                # inputs
+                # r4 = fighterdata current attr ptr
+                # r3 = scale multi offset
+                # using
+                # r31 = fighter data
+                # f3 = current atr
+                # f1 = multi
+                # f2 = scale y
+                lwz r0, -0x517C(r13)
+                lfsx f1, r3, r0 # scale multi
+                lfs f2, 0x38(r31) # scale y
+                lfs f3, 0(r4) # current attr val
+                
+                lbl_800CFBF0:
+                    lfs f0, -0x6A80(rtoc)
+                    fcmpu cr0,f0,f1
+                    bne lbl_800CFC00
+                    b lbl_800CFC58
+                lbl_800CFC00: 
+                    fcmpo cr0,f1,f0
+                    bge lbl_800CFC20
+                    CallUnkFunc:
+                        # backup LR & f3
+                        mflr r0
+                        stw r0, 0x18(sp)
+                        stfd f3, 0x30(sp)
+                        fneg f3,f1
+                        lfs f1, -0x6A7C(rtoc)
+                        %branchLink("0x800CF594") # r4 doesn't get messed with, no need to save
+                        lfd f3, 0x30(sp)
+                        fdivs f3,f3,f1
+                        lwz r0, 0x18(sp)
+                        mtlr r0
+                        b lbl_800CFC58
+                lbl_800CFC20: 
+                    lfs f0, -0x6A7C(rtoc)
+                    fcmpo cr0,f2,f0
+                    cror 2, 1, 2
+                    beq lbl_800CFC3C
+                    fcmpo cr0,f1,f0
+                    cror 2, 0, 2
+                    bne lbl_800CFC50
+                lbl_800CFC3C: 
+                    lfs f0, -0x6A7C(rtoc)
+                    fsubs f0,f2,f0
+                    fmuls f0,f0,f3
+                    fmadds f3,f1,f0,f3
+                    b lbl_800CFC58
+
+                lbl_800CFC50: 
+                    fmuls f0,f3,f2
+                    fdivs f3,f0,f1
+
+                lbl_800CFC58: 
+                    stfs f3, 0(r4)
+                    blr
 
             OriginalExit:
                 lwz r30, 0x4(r5)
@@ -619,11 +706,6 @@ defineCodes:
 
             mr r3, r31
             %branchLink(CustomFuncResetGravityAndFallSpeed)
-            # reset flag to 0
-            li r3, 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
-            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
             lwz r3, 0x18AC(r31)
             Exit:
                 %emptyBlock
@@ -919,10 +1001,6 @@ defineCodes:
                     lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                     %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
                     beq StoreDisableMeteorCancel
-                    li r3, 0
-                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                    rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
                     # call custom reset func
                     mr r3, r30
                     %branchLink(CustomFuncResetGravityAndFallSpeed)
