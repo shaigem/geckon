@@ -522,154 +522,6 @@ defineCodes:
 
             Exit:
                 lwz r0, 0(r29)
-
-#[         # Item_UpdateHitboxPositions Begin Patch
-        patchInsertAsm "802713a4":
-            # store ExtHit onto 0xC(sp) for use later on in the function
-            # r3 = it gobj
-            # r27 = it gobj
-            # r30 = item data
-            # r29 = it hit struct
-            lwz r0, 0(r29) # orig code line
-            cmpwi r0, 0 # hitbox to update is inactive, don't bother getting ExtHit
-            beq Exit
-
-            mr r4, r3
-            mr r5, r29
-            %branchLink("0x801510d4") # getExtHit
-            cmplwi r3, 0
-            beq Exit
-            stw r3, 0xC(sp) # store Ext Hit on stack
-            Exit:
-                lwz r0, 0(r29) # orig code line
-
-        # Hitbox_UpdateHitboxPositions Initial Hitbox Position Patch for Stretch
-        patchInsertAsm "8007adb0":
-            # on create hitbox position
-            # calculate initial hitbox position with offset of 0 if hitbox has the Stretch property
-            lwz r3, 0x20(sp) # getExtHit
-            cmplwi r3, 0
-            beq Exit
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq Exit 
-
-            li r0, 0
-            stw r0, 0x10(sp)
-            stw r0, 0x14(sp)
-            stw r0, 0x18(sp)
-
-            Exit:
-                lwz r3, 0x48(r31) # bone jobj
-
-        # Item_UpdateHitboxPositions Initial Hitbox Position Patch for Stretch
-        patchInsertAsm "802713d8":
-            # on create hitbox position
-            # calculate initial hitbox position with offset of 0 if hitbox has the Stretch property
-            lwz r3, 0xC(sp) # getExtHit
-            cmplwi r3, 0
-            beq OriginalExit
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq OriginalExit 
-
-            li r0, 0
-            stw r0, -0x4(sp)
-            stw r0, -0x8(sp)
-            stw r0, -0xC(sp)
-            addi r4, sp, -0x4
-            b Restore
-
-            OriginalExit:
-                addi r4, r29, 16
-                Restore:
-                    lwz r3, 0x48(r29) # bone jobj
-
-        # Hitbox_UpdateHitboxPositions Moving Hitbox Position Patch for Stretch
-        patchInsertAsm "8007ae5c":
-            # on update hitbox position
-            # calculate moving hitbox position with offset of 0 if hitbox has the Stretch property
-            lwz r3, 0x20(sp) # getExtHit
-            cmplwi r3, 0
-            beq Exit
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq Exit
-
-            li r0, 0
-            stw r0, 0x10(sp)
-            stw r0, 0x14(sp)
-            stw r0, 0x18(sp)
-            Exit:
-                lwz r3, 0x48(r31) # bone jobj
-
-        # Item_UpdateHitboxPositions Moving Hitbox Position Patch for Stretch
-        patchInsertAsm "80271440":
-            # on update hitbox position
-            # calculate moving hitbox position with offset of 0 if hitbox has the Stretch property
-            lwz r3, 0x20(sp) # getExtHit
-            cmplwi r3, 0
-            beq Exit
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq Exit
-
-            li r0, 0
-            stw r0, -0x4(sp)
-            stw r0, -0x8(sp)
-            stw r0, -0xC(sp)
-            Exit:
-                lwz r3, 0x48(r29) # bone jobj
-
-        # Hitbox_UpdateHitboxPositions Update Last Hitbox Position
-        patchInsertAsm "8007addc":
-            # if Stretch property is true, set the previous hitbox position as the current pos + offset
-            lwz r3, 0x20(sp) # getExtHit
-            cmplwi r3, 0
-            beq OriginalExit
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq OriginalExit
-            lwz r3, 0x10(r31)
-            lwz r4, 0x14(r31)
-            stw r3, 0x10(sp)
-            stw r4, 0x14(sp)
-            lwz r4, 0x18(r31)
-            stw r4, 0x18(sp)
-            lwz r3, 0x48(r31) # bone jobj
-            addi r4, sp, 16 # offset ptr
-            addi r5, r31, 0x58
-            %branchLink("0x8000B1CC")
-            %branch("0x8007ae6c")
-
-            OriginalExit:
-                stw r0, 0(r31)
-
-        # Hitbox_UpdateHitboxPositions Update Last Hitbox Position
-        patchInsertAsm "8007ae00":
-            # if Stretch property is true, set the previous hitbox position as the current pos + offset
-            lwz r4, 0x20(sp) # getExtHit
-            cmplwi r4, 0
-            beq OriginalExit
-            lbz r4, {ExtHitFlags1Offset}(r4) # get flags
-            %`rlwinm.`(r4, r4, 0, 27, 27) # check if Stretch property is set to true (0x10)
-            beq OriginalExit
-            mr r6, r3 # backup r3
-            lwz r3, 0x10(r31)
-            lwz r4, 0x14(r31)
-            stw r3, 0x10(sp)
-            stw r4, 0x14(sp)
-            lwz r4, 0x18(r31)
-            stw r4, 0x18(sp)
-            lwz r3, 0x48(r31) # bone jobj
-            addi r4, sp, 16 # offset ptr
-            addi r5, r31, 0x58
-            %branchLink("0x8000B1CC")
-            mr r3, r6
-            %branch("0x8007ae04")
-
-            OriginalExit:
-                stw r0, 0x60(r31) ]#
         
         # Function for Resetting Gravity and Fall Speed
         patchInsertAsm "801510e8":
@@ -828,7 +680,7 @@ defineCodes:
                 %emptyBlock
 
         # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
-        # Called when defender is attacked by another fighter
+        # Called when fighter defender is attacked by another fighter
         patchInsertAsm "8007a1e4":
             cmplwi r18, 0
             beq Exit
@@ -842,7 +694,7 @@ defineCodes:
                 stw r3, 0x22C(sp) # orig code line
 
         # CalculateKnockback Patch for Skipping On Hit GFX for Windboxes
-        # Called when defender is attacked by an item
+        # Called when fighter defender is attacked by an item
         patchInsertAsm "8007a498":
             cmplwi r18, 0
             beq Exit
@@ -1105,11 +957,11 @@ defineCodes:
                 # input = gobj in r3
                 # returns 0 = ?, 1 = fighter, 2 = item, in r3
                 lhz r0, 0(r3)
-                cmpwi r0,0x4
+                cmplwi r0,0x4
                 li r3, 1
                 beq Result
                 li r3, 2
-                cmpwi r0,0x6
+                cmplwi r0,0x6
                 beq Result
                 li r3, 0
                 Result:
@@ -1426,12 +1278,7 @@ defineCodes:
             # r3 = 0
             # r30 = fighter data
             # reset vars to 0
-
-            # reset the following vars only if there isn't a grabbed_attacker ptr
-            lwz r0, 0x1A58(r30) # grab_attacker ptr
-            cmplwi r0, 0
-            bne Exit # if someone is grabbing us, don't reset the custom vars
-
+    
             # reset flinchless flag to 0
             lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
             rlwimi r0, r3, 0, {FlinchlessFlag}
@@ -1442,7 +1289,9 @@ defineCodes:
             rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
             stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
+            # reset hitstun modifier to 0
             stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
+
             # reset vars to 1.0
             lfs f0, -0x7790(rtoc) # 1.0
             stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r30)
