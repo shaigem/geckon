@@ -955,14 +955,15 @@ defineCodes:
                 mr r3, r30 # orig code line
 
         # Throw_ThrowVictim Patch - Set ExtHit Vars & Hitlag on Thrown Victim
-        patchInsertAsm "800de28c":
-            # r30 = grabbed victim fighter data
-            # r28 = grabbed source fighter data
-            # r31 = ExtHit
-            lwz r3, 0(r28)
-            lwz r4, 0(r30)
-            addi r5, r28, 0xDF4 # source throw hitbox
-            addi r6, r28, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+        patchInsertAsm "800ddf88":
+            # r25 = always grabbed victim's gobj
+            # r24 = grabber source gobj
+            # r30 = always victim's fighter data
+            # r31 = source's fighter data
+            mr r3, r24
+            mr r4, r25
+            addi r5, r31, 0xDF4 # source throw hitbox
+            addi r6, r31, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
             %branchLink("0x801510dc")
 
             # do hitlag vibration
@@ -986,7 +987,7 @@ defineCodes:
             stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
             
             Exit:
-                lwz r0, 0x94(sp) # orig code line
+                lbz r0, 0x2226(r27) # orig code line
 
         # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
         patchInsertAsm "801510dc":
