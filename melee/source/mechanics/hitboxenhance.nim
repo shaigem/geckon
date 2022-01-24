@@ -1284,39 +1284,26 @@ defineCodes:
             lfs f0, -0x33A8(rtoc) # 0.0, original code line
 
         # Init Default Values for ExtHit - Projectiles
-        patchInsertAsm "802790f0":
+        patchInsertAsm "802790fc":
             # r4 = hitbox id
             # r30 = item data??
-
             mulli r3, r4, {ExtHitSize}
             addi r3, r3, {ExtItemDataOffset}
             add r3, r30, r3
-            # save r4 to r28
-            mr r28, r4
             %branchLink(CustomFunctionInitDefaultEventVars)
-            # restore r4
-            mr r4, r28
             Exit:
-                mulli r3, r4, 316 # orig code line
+                lwz r0, 0(r29) # orig code line
 
         # Init Default Values for ExtHit - Melee
-        patchInsertAsm "8007127c":
+        patchInsertAsm "80071288":
             # r0 = hitbox ID
             # r31 = fighter data
-
             mulli r3, r0, {ExtHitSize}
             addi r3, r3, {ExtFighterDataOffset}
             add r3, r31, r3
-
-            # backup r4 to r5
-            mr r5, r4
             %branchLink(CustomFunctionInitDefaultEventVars)
-
-            # restore r4
-            mr r4, r5
-            
             Exit:
-                mulli r3, r0, 312 # orig code line
+                lwz r0, 0(r30) # orig code line
 
         # Reset Custom ExtFighterData vars that are involved at the end of Hitlag for Fighters
         patchInsertAsm "8006d1d8":
@@ -1332,12 +1319,12 @@ defineCodes:
         patchInsertAsm "8006d95c":
             # reset multiplier ONLY when there isn't a grabbed_attacker ptr
             # r30 = fighter data
-            lwz r3, 0x1A58(r30) # grab_attacker ptr
-            cmplwi r3, 0
+            lwz r0, 0x1A58(r30) # grab_attacker ptr
+            cmplwi r0, 0
             bne Exit # if someone is grabbing us, don't reset the multiplier
             stfs f0, 0x1960(r30) # else reset it to 1.0
             Exit:
-                li r3, 0 # restore r3
+                %emptyBlock
 
         # Reset Custom ExtFighterData vars that are involved with PlayerThink_Shield/Damage
         patchInsertAsm "8006d8fc":
@@ -1382,8 +1369,8 @@ defineCodes:
             # reset vars that need to be 0
             lfs f0, -0x778C(rtoc) # 0.0
             stfs f0, {ExtHitHitstunModifierOffset}(r3)
-            li r4, 0
-            stw r4, {ExtHitFlags1Offset}(r3)
+            li r0, 0
+            stw r0, {ExtHitFlags1Offset}(r3)
             blr
 
             OriginalExit:
