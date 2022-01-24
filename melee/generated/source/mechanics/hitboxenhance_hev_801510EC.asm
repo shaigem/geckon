@@ -16,9 +16,9 @@ lbz r3, 16(r3)
 rlwinm. r3, r3, 0, 27, 27
 beq Exit
 lhz r0, 0(r30)
-cmpwi r0, 0x00000004
+cmplwi r0, 0x00000004
 beq SetForFighter
-cmpwi r0, 0x00000006
+cmplwi r0, 0x00000006
 bne GetInitialPos
 mr r3, r30
 lis r12, 0x80275788 @h

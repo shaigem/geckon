@@ -136,11 +136,11 @@ Exit:
 blr
 IsItemOrFighter:
 lhz r0, 0(r3)
-cmpwi r0, 0x00000004
+cmplwi r0, 0x00000004
 li r3, 1
 beq Result
 li r3, 2
-cmpwi r0, 0x00000006
+cmplwi r0, 0x00000006
 beq Result
 li r3, 0
 Result:

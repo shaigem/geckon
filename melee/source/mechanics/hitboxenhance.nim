@@ -445,9 +445,9 @@ defineCodes:
             beq Exit
 
             lhz r0, 0(r30)
-            cmpwi r0,0x4
+            cmplwi r0, 0x4
             beq SetForFighter
-            cmpwi r0,0x6
+            cmplwi r0, 0x6
             bne GetInitialPos
 
             # setup for item
