@@ -68,21 +68,11 @@ rlwinm. r0, r3, 0, 26, 26
 bne FlippyForward
 rlwinm. r0, r3, 0, 25, 25
 bne StoreCalculatedDirection
-b StoreWindboxFlag
+b SetWeight
 FlippyForward:
 fneg f0, f0
 StoreCalculatedDirection:
 stfs f0, 0x00001844(r30)
-StoreWindboxFlag:
-lbz r3, 16(r28)
-rlwinm. r0, r3, 0, 28, 28
-li r3, 0
-beq WindboxSet
-li r3, 1
-WindboxSet:
-lbz r0, 9360(r30)
-rlwimi r0, r3, 0, 1
-stb r0, 9360(r30)
 SetWeight:
 lbz r3, 16(r28)
 rlwinm. r3, r3, 0, 128

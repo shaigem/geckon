@@ -8,7 +8,17 @@ mr. r18, r3
 lfs f4, 0x00000088(r27)
 beq Exit
 stw r3, 0x00000090(sp)
-lbz r4, 16(r3)
+StoreWindboxFlag:
+lbz r4, 16(r18)
+rlwinm. r4, r4, 0, 8
+li r3, 0
+beq WindboxSet
+li r3, 1
+WindboxSet:
+lbz r4, 9360(r25)
+rlwimi r4, r3, 0, 1
+stb r4, 9360(r25)
+lbz r4, 16(r18)
 rlwinm. r4, r4, 0, 128
 beq Exit
 UseSetWeight:

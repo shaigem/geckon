@@ -147,6 +147,10 @@ template `bge+`*(label: untyped): string =
     ppc:
         "bge+" label
 
+template `bdnz+`*(label: untyped): string =
+    ppc:
+        "bdnz+" label
+
 template `ble-`*(label: untyped): string =
     ppc:
         "ble-" label

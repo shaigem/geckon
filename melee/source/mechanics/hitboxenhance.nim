@@ -78,7 +78,7 @@ const
 const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.6.3"
+    CodeVersion = "v1.7.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -759,7 +759,18 @@ defineCodes:
             # r3 contains ExtHit offset
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
-            lbz r4, {ExtHitFlags1Offset}(r3)
+            StoreWindboxFlag:
+                lbz r4, {ExtHitFlags1Offset}(r18)
+                %`rlwinm.`(r4, r4, 0, ExtHitFlags1Flinchless) # 0x8 for windbox flag
+                li r3, 0
+                beq WindboxSet
+                li r3, 1
+                WindboxSet:
+                    lbz r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                    rlwimi r4, r3, 0, {FlinchlessFlag}
+                    stb r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+
+            lbz r4, {ExtHitFlags1Offset}(r18)
             %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
             beq Exit
 
@@ -784,7 +795,18 @@ defineCodes:
             # r3 contains ExtHit offset
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
-            lbz r4, {ExtHitFlags1Offset}(r3)
+            StoreWindboxFlag:
+                lbz r4, {ExtHitFlags1Offset}(r18)
+                %`rlwinm.`(r4, r4, 0, ExtHitFlags1Flinchless) # 0x8 for windbox flag
+                li r3, 0
+                beq WindboxSet
+                li r3, 1
+                WindboxSet:
+                    lbz r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                    rlwimi r4, r3, 0, {FlinchlessFlag}
+                    stb r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+
+            lbz r4, {ExtHitFlags1Offset}(r18)
             %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
             beq Exit
 
@@ -796,19 +818,19 @@ defineCodes:
             Exit:
                 %emptyBlock
 
-        # # Hitbox_ItemLogicOnPlayer Patch for Skipping On Hit GFX for Windboxes
-        # # Called when fighter defender is attacked by another fighter
-        # patchInsertAsm "80078538":
-        #     # actually this patch works for fighter on fighter
-        #     # doesn't have to be item on player
-        #     lwz r3, 0x2C(r3)
-        #     lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r3)
-        #     %`rlwinm.`(r0, r0, 0, FlinchlessFlag)
-        #     beq OriginalExit # not flinchless, show GFX
-        #     blr
-        #     OriginalExit:
-        #         lwz r3, 0(r3) # restore r3
-        #         mflr r0 # orig code line
+        # Hitbox_ItemLogicOnPlayer Patch for Skipping On Hit GFX for Windboxes
+        # Called when fighter defender is attacked by another fighter
+        patchInsertAsm "80078538":
+            # actually this patch works for fighter on fighter
+            # doesn't have to be item on player
+            lwz r3, 0x2C(r3)
+            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r3)
+            %`rlwinm.`(r0, r0, 0, FlinchlessFlag)
+            beq OriginalExit # not flinchless, show GFX
+            blr
+            OriginalExit:
+                lwz r3, 0(r3) # restore r3
+                mflr r0 # orig code line
 
         # CalculateKnockback patch for setting hit variables that affect the defender and attacker after all calculations are done
         patchInsertAsm "8007aaf4":
@@ -1064,22 +1086,11 @@ defineCodes:
                 bne FlippyForward
                 %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
                 bne StoreCalculatedDirection
-                b StoreWindboxFlag
+                b SetWeight
                 FlippyForward:
                     fneg f0, f0
                 StoreCalculatedDirection:
                     stfs f0, 0x1844(r30)
-            
-            StoreWindboxFlag:
-                lbz r3, {ExtHitFlags1Offset}(r28)
-                %`rlwinm.`(r0, r3, 0, 28, 28) # 0x8 for windbox flag
-                li r3, 0
-                beq WindboxSet
-                li r3, 1
-                WindboxSet:
-                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                    rlwimi r0, r3, 0, {FlinchlessFlag}
-                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
 
             SetWeight:
                 # handles the setting and reseting of temp gravity & fall speed
@@ -1477,50 +1488,38 @@ defineCodes:
 
             # r5 = ExtItem/FighterDataOffset
             # r30 = item/fighter data
+            # r27 = item/fighter gobj
             stwu sp, -0x50(sp)
             lwz r3, 0x8(r29) # load current subaction ptr
-            lbz r4, 0x1(r3)
-            %`rlwinm.`(r0, r4, 0, 27, 27) # 0x10, apply to all previous hitboxes
-            bne ApplyToAllPreviousHitboxes
-            # otherwise, apply the properties to the given hitbox id
-            li r0, 1 # loop once
-            rlwinm r4, r4, 27, 29, 31 # 0xE0 hitbox id
-            b SetLoopCount
-            ApplyToAllPreviousHitboxes:
-                li r0, 4 # loop 4 times
-                li r4, 0
 
-            SetLoopCount:
-                mtctr r0
-            # calculate ExtHit ptr offset in Ft/It data
-            mulli r4, r4, {ExtHitSize}
-            add r4, r4, r5
-            add r4, r30, r4
+            # set default read loop count to 1
+            li r0, 1
+            mtctr r0
 
+            lhz r0, 0(r27) # entity class type
+            cmplwi r0, 0x6 # isitem
+            lbz r0, 0x1(r3)
+            rlwinm r4, r0, 27, 29, 31 # 0xE0 hitbox id/type
+            beq CheckApplyToPrevious
+
+            cmplwi r4, 7 # Throw type
+            %`bne+`(CheckApplyToPrevious)
+            addi r4, r30, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
             b BeginReadData
 
-            CopyToAllHitboxes:
-                # r6 = ptr to next ExtHit
-                # r4 = ptr to old ExtHit
-                addi r6, r4, {ExtHitSize}
-                Loop:
-                    lwz r0, {ExtHitHitlagOffset}(r4)
-                    stw r0, {ExtHitHitlagOffset}(r6)
+            CheckApplyToPrevious:
+                %`rlwinm.`(r0, r0, 0, 27, 27) # 0x10, apply to all hitboxes 0-3
+                beq CalculateExtHit # if not set, just loop once
+                # otherwise, apply the properties to the given hitbox id
+                li r0, 4 # loop 4 times
+                mtctr r0
+                li r4, 0 # set starting id to 0
 
-                    lwz r0, {ExtHitSDIMultiplierOffset}(r4)
-                    stw r0, {ExtHitSDIMultiplierOffset}(r6)
-
-                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r4)
-                    stw r0, {ExtHitShieldstunMultiplierOffset}(r6)
-
-                    lwz r0, {ExtHitHitstunModifierOffset}(r4)
-                    stw r0, {ExtHitHitstunModifierOffset}(r6)
-
-                    lwz r0, {ExtHitFlags1Offset}(r4)
-                    stw r0, {ExtHitFlags1Offset}(r6)
-                    addi r6, r6, {ExtHitSize}
-                    bdnz Loop
-                b Exit
+            CalculateExtHit:
+                # calculate ExtHit ptr offset in Ft/It data
+                mulli r4, r4, {ExtHitSize}
+                add r4, r4, r5
+                add r4, r30, r4
 
             BeginReadData:
                 # load 0.01 to use for multipliying our multipliers
@@ -1554,7 +1553,30 @@ defineCodes:
                 lbz r6, 0x7(r3)
                 stb r6, {ExtHitFlags1Offset}(r4)
 
-            bdnz CopyToAllHitboxes
+            %`bdnz+`(CopyToAllHitboxes)
+            b Exit
+
+            CopyToAllHitboxes:
+                # r6 = ptr to next ExtHit
+                # r4 = ptr to old ExtHit
+                addi r6, r4, {ExtHitSize}
+                Loop:
+                    lwz r0, {ExtHitHitlagOffset}(r4)
+                    stw r0, {ExtHitHitlagOffset}(r6)
+
+                    lwz r0, {ExtHitSDIMultiplierOffset}(r4)
+                    stw r0, {ExtHitSDIMultiplierOffset}(r6)
+
+                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r4)
+                    stw r0, {ExtHitShieldstunMultiplierOffset}(r6)
+
+                    lwz r0, {ExtHitHitstunModifierOffset}(r4)
+                    stw r0, {ExtHitHitstunModifierOffset}(r6)
+
+                    lwz r0, {ExtHitFlags1Offset}(r4)
+                    stw r0, {ExtHitFlags1Offset}(r6)
+                    addi r6, r6, {ExtHitSize}
+                    %`bdnz+`(Loop)
 
             Exit:
                 # advance script
