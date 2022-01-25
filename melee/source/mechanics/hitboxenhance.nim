@@ -756,6 +756,13 @@ defineCodes:
         #     OriginalExit:
         #         lfs f1, -0x5B40(rtoc)
 
+        # CalculateKnockback Patch Beginning
+        # Set 0x90(sp) to 0 - This is later used for storing our calculated ExtHit
+        patchInsertAsm "8007a0ec":
+            # r24 = 0
+            stw r24, 0x90(sp)
+            lis r29, 0x4330 # orig code
+
         # CalculateKnockback Patch Precalculation
         # Called when defender is attacked by another fighter
         patchInsertAsm "8007a14c":
