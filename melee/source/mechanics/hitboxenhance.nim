@@ -78,7 +78,7 @@ const
 const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.7.0"
+    CodeVersion = "v1.7.1"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -773,9 +773,10 @@ defineCodes:
             lwz r3, 0(r15)
             mr r4, r17 # hit struct
             %branchLink("0x801510d4")
-            %`mr.`(r18, r3) # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
+            cmplwi r3, 0
             lfs f4, 0x88(r27) # weight of defender
             beq Exit
+            mr r18, r3 # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
             # r3 contains ExtHit offset
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
@@ -809,9 +810,10 @@ defineCodes:
             lwz r3, 0x8(r19) # get item gobj attacker
             lwz r4, 0xC(r19) # get last hit
             %branchLink("0x801510d4")
-            %`mr.`(r18, r3) # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
+            cmplwi r3, 0
             lfs f22, 0x88(r27) # weight of defender
             beq Exit
+            mr r18, r3 # save ExtHit in r18 for other patches to use. NOTE: 8007a784 r18 gets replaced!
             # r3 contains ExtHit offset
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
@@ -860,11 +862,20 @@ defineCodes:
             # r31 = ptr ft hit
             # r30 = gobj of defender
             # r4 = gobj of src
-            lwz r3, 0x8(r19)
-            mr r4, r30
-            lwz r5, 0xC(r19) # ptr fthit of source
-            lwz r6, 0x90(sp)
-            %branchLink("0x801510dc") # TODO const...
+            # original: check if hit element is electric and if it is, set the hitlag multiplier of the defender to 1.5x
+            # this part is here as a failsafe if the SetVars function below somehow returns early due to invalid data
+            lwz r0, 0x1C(r31)
+            cmplwi r0, 2
+            bne SetVars
+            lwz r3, -0x514C(r13)
+            lfs f0, 0x1A4(r3)
+            stfs f0, 0x1960(r25)
+            SetVars:
+                lwz r3, 0x8(r19)
+                mr r4, r30
+                lwz r5, 0xC(r19) # ptr fthit of source
+                lwz r6, 0x90(sp)
+                %branchLink("0x801510dc") # TODO const...
             li r0, 0 # skip the setting of electric hitlag multiplier
 
         # Hitbox Entity Vs Melee - Set Variables
@@ -898,7 +909,6 @@ defineCodes:
             %branchLink("0x801510dc")
             Exit:
                 lwz r0, 0xCA0(r31) # original code line
-
 
         # ASDI multiplier mechanics patch
         patchInsertAsm "8008e7a4":
@@ -1018,6 +1028,7 @@ defineCodes:
             # r31 = source data
             # r30 = defender data
             # r29 = r5 ft/it hit
+            # r28 = ExtHit offset
             # r27 = r3 source gobj
             # r26 = r4 defender gobj
 
@@ -1028,7 +1039,8 @@ defineCodes:
             mr r26, r4
 
             # if ExtHit was already given to us, don't calculate ExtHit again
-            %`mr.`(r28, r6)
+            cmplwi r6, 0
+            mr r28, r6
             bne CalculateTypes
 
             # calculate ExtHit offset for given ft/it hit ptr
@@ -1044,16 +1056,17 @@ defineCodes:
             CalculateTypes:
                 # r25 = source type
                 # r24 = defender type
-                # r28 = ExtHit offset
                 mr r3, r27
                 bl IsItemOrFighter
-                %`mr.`(r25, r3) # backup source type
+                cmplwi r3, 0
                 beq Epilog
+                mr r25, r3 # backup source type
 
                 mr r3, r26
                 bl IsItemOrFighter
-                %`mr.`(r24, r3) # backup def type
+                cmplwi r3, 0
                 beq Epilog
+                mr r24, r3 # backup def type
 
             StoreHitlag:
                 lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier

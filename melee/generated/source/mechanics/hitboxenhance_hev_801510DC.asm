@@ -11,7 +11,8 @@ lwz r30, 0x0000002C(r4)
 mr r29, r5
 mr r27, r3
 mr r26, r4
-mr. r28, r6
+cmplwi r6, 0
+mr r28, r6
 bne CalculateTypes
 CalculateExtHitOffset:
 mr r3, r27
@@ -26,12 +27,14 @@ mr r28, r3
 CalculateTypes:
 mr r3, r27
 bl IsItemOrFighter
-mr. r25, r3
+cmplwi r3, 0
 beq Epilog
+mr r25, r3
 mr r3, r26
 bl IsItemOrFighter
-mr. r24, r3
+cmplwi r3, 0
 beq Epilog
+mr r24, r3
 StoreHitlag:
 lfs f0, 0(r28)
 cmpwi r25, 1

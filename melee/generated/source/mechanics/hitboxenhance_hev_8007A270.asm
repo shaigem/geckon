@@ -4,9 +4,10 @@ lis r12, 0x801510d4 @h
 ori r12, r12, 0x801510d4 @l
 mtctr r12
 bctrl
-mr. r18, r3
+cmplwi r3, 0
 lfs f22, 0x00000088(r27)
 beq Exit
+mr r18, r3
 stw r3, 0x00000090(sp)
 StoreWindboxFlag:
 lbz r4, 16(r18)
