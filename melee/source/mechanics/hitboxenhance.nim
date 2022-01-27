@@ -2,8 +2,17 @@ import geckon
 #[- code: 0xF1
   name: Hitbox Extension
   parameters:
-  - name: Hitbox ID
+  - name: Hitbox ID/Type
     bitCount: 3
+    enums:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4 (unused)
+      - 5 (unused)
+      - 6 (unused)
+      - Throw
   - name: Apply to Hitbox IDs 0-3
     bitCount: 1
     enums:
@@ -44,8 +53,13 @@ import geckon
     enums:
       - false
       - true
+  - name: No Stale
+    bitCount: 1
+    enums:
+      - false
+      - true
   - name: Padding
-    bitCount: 2]#
+    bitCount: 1]#
 
 type GameDataType* = enum
         Vanilla, A20XX, Mex
@@ -78,7 +92,7 @@ const
 const CurrentGameData = MexGameData
 
 const
-    CodeVersion = "v1.7.1"
+    CodeVersion = "v1.8.0"
     CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -199,7 +213,7 @@ const
     ExtHitFlags1Stretch = 0x10
     ExtHitFlags1Flinchless = 0x8
     ExtHitFlags1DisableMeteorCancel = 0x4
-
+    ExtHitFlags1NoStale = 0x2
 
 # Size of new hitbox data = last var offset + last var offset.size
 const ExtHitSize = ExtHitFlags1Offset + 0x4
@@ -223,6 +237,7 @@ const
     TempGravityFallSpeedFlag = 0x2
     DisableMeteorCancelFlag = 0x4
     ForceThrownHitlag = 0x8
+
 # New variable pointer offsets for ITEMS only
 const
     ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
@@ -255,6 +270,57 @@ defineCodes:
     createCode CodeName:
         description CodeDescription
         authors CodeAuthors
+
+        patchInsertAsm "8007893c":
+            addi r30, r3, 0
+            cmplw r3, r5
+            bne Exit
+            mr r4, r3
+            Exit:
+                %emptyBlock
+
+        patchInsertAsm "80077414":
+            # r28 = defender data
+            # r26 = attacker data
+            # r27 = hit struct
+            lwz r3, 0(r26)
+            mr r4, r27
+            # get ext hit struct
+            %branchLink("0x801510d4") # getExtHit
+            cmplwi r3, 0
+            beq Exit
+            lbz r3, {ExtHitFlags1Offset}(r3)
+            %`rlwinm.`(r3, r3, 0, ExtHitFlags1NoStale)
+            beq Exit
+            lwz r5, 0(r26)
+            Exit:
+                lwz r3, 0(r26) # orig code line
+
+        patchInsertAsm "800789b8":
+            addi r30, r4, 0
+            cmplw r3, r5
+            bne Exit
+            mr r4, r3
+            Exit:
+                %emptyBlock
+
+        # HURTBOX HIT - Article Hitbox - Attacker+Victim (Hitbox_ProjectileLogicOnPlayer)
+        patchInsertAsm "80078334":
+            # r28 = defender data
+            # r26 = item attacker data
+            # r27 = hit struct
+            lwz r3, 0x4(r26)
+            mr r4, r27
+            # get ext hit struct
+            %branchLink("0x801510d4") # getExtHit
+            cmplwi r3, 0
+            beq Exit
+            lbz r3, {ExtHitFlags1Offset}(r3)
+            %`rlwinm.`(r3, r3, 0, ExtHitFlags1NoStale)
+            beq Exit
+            lwz r5, 0x4(r26)
+            Exit:
+                lwz r3, 0x4(r26) # orig code line
 
         # Patch Disable Meteor Cancel
         patchInsertAsm "8007ac70":
@@ -1520,104 +1586,132 @@ defineCodes:
             cmpwi r4, 343
             %`beq-`(OriginalExit)
 
+            # inputs
+            # r3 = ExtHit struct ptr
+            # r4 = Hit struct ptr
             # r5 = ExtItem/FighterDataOffset
+            # r6 = Hit struct offset
+            # r7 = Hit struct size
             # r30 = item/fighter data
             # r27 = item/fighter gobj
+            mflr r0
+            stw r0, 0x4(sp)
             stwu sp, -0x50(sp)
-            lwz r3, 0x8(r29) # load current subaction ptr
 
             # set default read loop count to 1
             li r0, 1
             mtctr r0
 
-            lhz r0, 0(r27) # entity class type
-            cmplwi r0, 0x6 # isitem
-            lbz r0, 0x1(r3)
-            rlwinm r4, r0, 27, 29, 31 # 0xE0 hitbox id/type
-            beq CheckApplyToPrevious
+            lwz r8, 0x8(r29) # load current subaction ptr
 
-            cmplwi r4, 7 # Throw type
-            %`bne+`(CheckApplyToPrevious)
-            addi r4, r30, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
-            b BeginReadData
+            cmplwi r3, 0
+            bgt BeginReadData
 
             CheckApplyToPrevious:
-                %`rlwinm.`(r0, r0, 0, 27, 27) # 0x10, apply to all hitboxes 0-3
-                beq CalculateExtHit # if not set, just loop once
+                lbz r0, 0x1(r8)
+                %`rlwinm.`(r3, r0, 0, 27, 27) # 0x10, apply to all hitboxes 0-3
+                rlwinm r3, r0, 27, 29, 31 # 0xE0 hitbox id/type
+                beq CalculateHitStructs # if not set, just loop once
                 # otherwise, apply the properties to the given hitbox id
                 li r0, 4 # loop 4 times
                 mtctr r0
-                li r4, 0 # set starting id to 0
+                li r3, 0 # set starting id to 0
 
-            CalculateExtHit:
+            CalculateHitStructs:
+                # input:
+                # r3 = hitbox id
+                # calculate normal Hit struct ptr
+                mullw r4, r3, r7
+                add r4, r4, r6
+                add r4, r30, r4                
                 # calculate ExtHit ptr offset in Ft/It data
-                mulli r4, r4, {ExtHitSize}
-                add r4, r4, r5
-                add r4, r30, r4
+                mulli r3, r3, {ExtHitSize}
+                add r3, r3, r5
+                add r3, r30, r3
 
             BeginReadData:
+                # r3 = ExtHit ptr
+                # r4 = Hit struct
                 # load 0.01 to use for multipliying our multipliers
-                lwz r6, -0x514C(r13) # static vars??
-                lfs f1, 0xF4(r6) # load 0.01 into f1
+                lwz r5, -0x514C(r13) # static vars??
+                lfs f1, 0xF4(r5) # load 0.01 into f1
                 # hitlag & SDI multipliers
-                lhz r6, 0x1(r3)
-                rlwinm r6, r6, 0, 0xFFF # 0xFFF, load hitlag multiplier
-                sth r6, 0x44(sp)
-                lhz r6, 0x3(r3)
-                rlwinm r6, r6, 28, 0xFFF # load SDI multiplier
-                sth r6, 0x46(sp)
+                lhz r5, 0x1(r8)
+                rlwinm r5, r5, 0, 0xFFF # 0xFFF, load hitlag multiplier
+                sth r5, 0x44(sp)
+                lhz r5, 0x3(r8)
+                rlwinm r5, r5, 28, 0xFFF # load SDI multiplier
+                sth r5, 0x46(sp)
                 psq_l f0, 0x44(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
                 ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-                psq_st f0, {ExtHitHitlagOffset}(r4), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+                psq_st f0, {ExtHitHitlagOffset}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
                 # read shieldstun multiplier & hitstun modifier
-                lwz r6, -0x514C(r13)
-                psq_l f1, 0xF4(r6), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
-                lhz r6, 0x4(r3)
-                rlwinm r6, r6, 0, 0xFFF # load shieldstun multiplier
-                sth r6, 0x40(sp)
-                lbz r6, 0x6(r3) # read hitstun modifier byte
-                slwi r6, r6, 24
-                srawi r6, r6, 24
-                sth r6, 0x42(sp)
+                lwz r5, -0x514C(r13)
+                psq_l f1, 0xF4(r5), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
+                lhz r5, 0x4(r8)
+                rlwinm r5, r5, 0, 0xFFF # load shieldstun multiplier
+                sth r5, 0x40(sp)
+                lbz r5, 0x6(r8) # read hitstun modifier byte
+                slwi r5, r5, 24
+                srawi r5, r5, 24
+                sth r5, 0x42(sp)
                 psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
                 ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-                psq_st f0, {ExtHitShieldstunMultiplierOffset}(r4), 0, 7 # store results next to each other
+                psq_st f0, {ExtHitShieldstunMultiplierOffset}(r3), 0, 7 # store results next to each other
                 # read isSetWeight & Flippy bits & store it
-                lbz r6, 0x7(r3)
-                stb r6, {ExtHitFlags1Offset}(r4)
+                lbz r0, 0x7(r8)
+                stb r0, {ExtHitFlags1Offset}(r3)
+                bl SetStaling
 
             %`bdnz+`(CopyToAllHitboxes)
             b Exit
 
             CopyToAllHitboxes:
-                # r6 = ptr to next ExtHit
-                # r4 = ptr to old ExtHit
-                addi r6, r4, {ExtHitSize}
+                # r5 = ptr to next ExtHit
+                # r3 = ptr to old ExtHit
+                addi r5, r3, {ExtHitSize}
+                add r4, r4, r7
                 Loop:
-                    lwz r0, {ExtHitHitlagOffset}(r4)
-                    stw r0, {ExtHitHitlagOffset}(r6)
+                    lwz r0, {ExtHitHitlagOffset}(r3)
+                    stw r0, {ExtHitHitlagOffset}(r5)
 
-                    lwz r0, {ExtHitSDIMultiplierOffset}(r4)
-                    stw r0, {ExtHitSDIMultiplierOffset}(r6)
+                    lwz r0, {ExtHitSDIMultiplierOffset}(r3)
+                    stw r0, {ExtHitSDIMultiplierOffset}(r5)
 
-                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r4)
-                    stw r0, {ExtHitShieldstunMultiplierOffset}(r6)
+                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r3)
+                    stw r0, {ExtHitShieldstunMultiplierOffset}(r5)
 
-                    lwz r0, {ExtHitHitstunModifierOffset}(r4)
-                    stw r0, {ExtHitHitstunModifierOffset}(r6)
+                    lwz r0, {ExtHitHitstunModifierOffset}(r3)
+                    stw r0, {ExtHitHitstunModifierOffset}(r5)
 
-                    lwz r0, {ExtHitFlags1Offset}(r4)
-                    stw r0, {ExtHitFlags1Offset}(r6)
-                    addi r6, r6, {ExtHitSize}
+                    lbz r0, {ExtHitFlags1Offset}(r3)
+                    stb r0, {ExtHitFlags1Offset}(r5)
+                    bl SetStaling
+                    addi r5, r5, {ExtHitSize}
+                    add r4, r4, r7
                     %`bdnz+`(Loop)
 
             Exit:
                 # advance script
-                addi r3, r3, 8 # TODO create a function to calculate this
-                stw r3, 0x8(r29) # store current pointing ptr
-                addi sp, sp, 80
+                addi r8, r8, 8 # TODO create a function to calculate this
+                stw r8, 0x8(r29) # store current pointing ptr
+                lwz r0, 0x54(sp)
+                addi sp, sp, 0x50
+                mtlr r0
                 blr
+
+            SetStaling:
+                # r0 = flags
+                # r4 = ft/it hit
+                %`rlwinm.`(r0, r0, 0, ExtHitFlags1NoStale)
+                beq Return_SetStaling
+                lwz r0, 0x8(r4)
+                sth r0, 0x40(sp)
+                psq_l f1, 0x40(sp), 1, 5
+                stfs f1, 0xC(r4)
+                Return_SetStaling:                
+                    blr
 
             OriginalExit:
                 fmr f3, f1
@@ -1654,9 +1748,21 @@ defineCodes:
             # r30 = item/fighter data
             cmpwi r28, 0x3C
             %`bne+`(OriginalExit)
-            li r5, {ExtFighterDataOffset}
-            %branchLink(CustomFunctionReadEvent)
-            %branch("0x8007332c")
+
+            lwz r3, 0x8(r29)
+            lbz r3, 0x1(r3)
+            rlwinm r3, r3, 27, 29, 31 # 0xE0 hitbox id/type
+            cmplwi r3, 7
+            li r3, 0
+            bne ReadEvent
+            addi r3, r30, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            addi r4, r30, 0xDF4
+            ReadEvent:
+                li r5, {ExtFighterDataOffset}
+                li r6, 2324
+                li r7, 312
+                %branchLink(CustomFunctionReadEvent)
+                %branch("0x8007332c")
             OriginalExit:
                 lwz r12, 0(r3)
 
@@ -1668,7 +1774,11 @@ defineCodes:
             # r30 = item/fighter data
             cmpwi r28, 0x3C
             %`bne+`(OriginalExit)
+            li r3, 0
+            li r4, 0
             li r5, {ExtItemDataOffset}
+            li r6, 1492
+            li r7, 316
             %branchLink(CustomFunctionReadEvent)
             %branch("0x80279ad0")
             OriginalExit:
