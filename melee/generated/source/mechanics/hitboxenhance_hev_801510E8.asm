@@ -12,9 +12,9 @@ stfs f0, 0x0000016C(r31)
 lfs f0, 0x00000060(r3)
 stfs f0, 0x00000170(r31)
 li r3, 0
-lbz r0, 9360(r31)
+lbz r0, 9440(r31)
 rlwimi r0, r3, 1, 2
-stb r0, 9360(r31)
+stb r0, 9440(r31)
 lfs f0, 0xFFFF9584(rtoc)
 lfs f1, 0x00000038(r31)
 fcmpu cr0, f0, f1

@@ -1,4 +1,5 @@
 import geckon
+import ../common/dataexpansion
 #[- code: 0xF1
   name: Hitbox Extension
   parameters:
@@ -61,210 +62,19 @@ import geckon
   - name: Padding
     bitCount: 1]#
 
-type GameDataType* = enum
-        Vanilla, A20XX, Mex
-
-type
-    GameData = object
-        dataType: GameDataType
-        fighterDataSize: int
-        itemDataSize: int
-
-const
-    FighterDataOrigSize = 0x23EC
-    ItemDataOrigSize = 0xFCC
-
-const 
-    VanillaGameData = GameData(dataType: GameDataType.Vanilla,
-    fighterDataSize: FighterDataOrigSize,
-    itemDataSize: ItemDataOrigSize)
-    
-    A20XXGameData = GameData(dataType: GameDataType.A20XX,
-    fighterDataSize: FighterDataOrigSize,
-    itemDataSize: ItemDataOrigSize)
-
-    # as of commit #f779005 Nov-29-2021 @ 1:28 AM EST
-    MexGameData = GameData(dataType: GameDataType.Mex,
-    fighterDataSize: FighterDataOrigSize + 52,
-    itemDataSize: ItemDataOrigSize + 0x4)
-
-# The current game data to compile the code for
-const CurrentGameData = MexGameData
-
 const
     CodeVersion = "v1.8.0"
-    CodeName = "Hitbox Extension " & CodeVersion &  " (" & $CurrentGameData.dataType & ")"
+    CodeName = "Hitbox Extension " & CodeVersion
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
-    ExtFighterDataOffset = CurrentGameData.fighterDataSize
-    ExtItemDataOffset = CurrentGameData.itemDataSize
-
-proc patchItemDataAllocation(extraDataSize: int): seq[CodeSectionNode] =
-    let newDataSize = CurrentGameData.itemDataSize + extraDataSize
-    let
-        SizeAdjust =
-                patchWrite32Bits "80266fd8":
-                    li r4, {newDataSize}
-
-        # Initialize Extended Item Data
-        InitItemData = 
-            patchInsertAsm "80268754":
-                addi r29, r3, 0 # backup r3
-
-                li r4, {newDataSize} # was 4044
-                %branchLink("0x8000c160")
-
-                Exit:
-                    mr r3, r29 # restore r3
-                    %`mr.`(r6, r3)
-
-    case CurrentGameData.dataType
-    of Vanilla:
-        discard
-    of A20XX:
-        discard
-    of Mex:
-        discard
-    # for all game types
-    result.add SizeAdjust
-    result.add InitItemData
-
-proc patchFighterDataAllocation(extraDataSize: int): seq[CodeSectionNode] =
-    let 
-        InitPlayerBlockValues = 
-            patchInsertAsm "80068eec":
-        # credits to https://github.com/UnclePunch/Training-Mode/blob/master/ASM/m-ex/Custom%20Playerdata%20Variables/Initialize%20Extended%20Playerblock%20Values.asm
-
-            block:
-                if CurrentGameData.dataType == A20XX:
-                    ppc:
-                        li r4, 0
-                        stw r4, 0x20(r31)
-                        stw r4, 0x24(r31)
-                        stb r4, 0x0D(r3)
-                        sth r4, 0x0E(r3)
-                        stb r4, 0x21FD(r3)
-                        sth r4, 0x21FE(r3)
-                else:
-                    ppc:
-                        %emptyBlock
-
-            # Backup Data Pointer After Creation
-            addi r30, r3, 0
-
-            # Get Player Data Length
-            %load("0x80458fd0", r4)
-            lwz r4, 0x20(r4)
-            # Zero Entire Data Block
-            %branchLink("0x8000c160")
-
-            Exit:
-                mr r3, r30
-                lis r4, 0x8046
-
-        SizeAdjust = 
-            patchWrite32Bits "800679bc":
-                li r4, {CurrentGameData.fighterDataSize + extraDataSize}
-
-        # # Initialize Extended Playerblock Values (Result screen)
-        # patchInsertAsm "800BE830":
-        #     # Backup Data Pointer After Creation
-        #     addi r30, r3, 0
-
-        #     # Get Player Data Length
-        #     %load("0x80458fd0", r4)
-        #     lwz r4,0x20(r4)
-        #     # Zero Entire Data Block
-        #     %branchLink("0x8000c160")
-
-        #     Exit:
-        #         mr r3, r30
-        #         lis r4, 0x8046
-
-    case CurrentGameData.dataType
-    of Vanilla:
-        discard
-    of A20XX:
-        # Fix 20XX Crash when Allocating New PlayerBlock Size
-        let SwingFileColorsFix = 
-            patchWrite32Bits "8013651c":
-                blr # this breaks 'Marth and Roy Sword Swing File Colors'!!!
-
-        result.add SwingFileColorsFix
-
-    of Mex:
-        discard
-
-    # for all game types
-    result.add SizeAdjust
-    result.add InitPlayerBlockValues
-
-# Variable offsets in our new ExtHit struct
-const
-    ExtHitHitlagOffset = 0x0 # float
-    ExtHitSDIMultiplierOffset = ExtHitHitlagOffset + 0x4 # float
-    ExtHitShieldstunMultiplierOffset = ExtHitSDIMultiplierOffset + 0x4 # float
-    ExtHitHitstunModifierOffset = ExtHitShieldstunMultiplierOffset + 0x4 # float
-    ExtHitFlags1Offset = ExtHitHitstunModifierOffset + 0x4 # char
-
-    ExtHitFlags1SetWeight = 0x80
-    ExtHitFlags1AngleFlipOpposite= 0x40
-    ExtHitFlags1AngleFlipCurrent= 0x20
-    ExtHitFlags1Stretch = 0x10
-    ExtHitFlags1Flinchless = 0x8
-    ExtHitFlags1DisableMeteorCancel = 0x4
-    ExtHitFlags1NoStale = 0x2
-
-# Size of new hitbox data = last var offset + last var offset.size
-const ExtHitSize = ExtHitFlags1Offset + 0x4
-
-# New variable pointer offsets for both ITEMS & FIGHTERS
-const
-    ExtHit0Offset = 0x0
-    ExtHit1Offset = ExtHit0Offset + ExtHitSize
-    ExtHit2Offset = ExtHit1Offset + ExtHitSize
-    ExtHit3Offset = ExtHit2Offset + ExtHitSize
-
-# New variable pointer offsets for FIGHTERS only
-const
-    ExtThrowHit0Offset = ExtHit3Offset + ExtHitSize
-    SDIMultiplierOffset = ExtThrowHit0Offset + ExtHitSize # float
-    HitstunModifierOffset = SDIMultiplierOffset + 0x4 # float
-    ShieldstunMultiplierOffset = HitstunModifierOffset + 0x4 # float
-
-    Flags1Offset = ShieldstunMultiplierOffset + 0x4 # byte
-    FlinchlessFlag = 0x1
-    TempGravityFallSpeedFlag = 0x2
-    DisableMeteorCancelFlag = 0x4
-    ForceThrownHitlag = 0x8
-
-# New variable pointer offsets for ITEMS only
-const
-    ExtItHitlagMultiplierOffset = ExtHit3Offset + ExtHitSize # float
-
-const 
-    ExtFighterDataSize = (Flags1Offset + 0x4)
-    ExtItemDataSize = (ExtItHitlagMultiplierOffset + 0x4)
+    HeaderInfo = MexHeaderInfo
+    ExtFighterDataOffset = HeaderInfo.fighterDataSize
+    ExtItemDataOffset = HeaderInfo.itemDataSize
 
 const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
     CustomFuncResetGravityAndFallSpeed = "0x801510e8"
-
-proc calcOffsetFighterExtData(varOff: int): int = ExtFighterDataOffset + varOff
-proc calcOffsetItemExtData(varOff: int): int = ExtItemDataOffset + varOff
-
-func getExtHitOffset(regFighterData, regHitboxId: Register; extraDataOffset: int|Register; regOutput: Register = r3): string =
-    if regOutput == regFighterData:
-        raise newException(ValueError, "output register (" & $regOutput & ") cannot be the same as the fighter data register")
-    result = ppc:
-        mulli {regOutput}, {regHitboxId}, {ExtHitSize} # hitbox id * ext hit size
-        block:
-            if extraDataOffset is Register:
-                ppc: add {regOutput}, {regOutput}, {extraDataOffset}
-            else:
-                ppc: addi {regOutput}, {regOutput}, {extraDataOffset}
-        add {regOutput}, {regFighterData}, {regOutput}
 
 defineCodes:
     createCode CodeName:
@@ -289,8 +99,8 @@ defineCodes:
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
-            lbz r3, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r3, r3, 0, ExtHitFlags1NoStale)
+            lbz r3, {extHitOff(hitFlags)}(r3)
+            %`rlwinm.`(r3, r3, 0, flag(hfNoStale))
             beq Exit
             lwz r5, 0(r26)
             Exit:
@@ -315,8 +125,8 @@ defineCodes:
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
-            lbz r3, {ExtHitFlags1Offset}(r3)
-            %`rlwinm.`(r3, r3, 0, ExtHitFlags1NoStale)
+            lbz r3, {extHitOff(hitFlags)}(r3)
+            %`rlwinm.`(r3, r3, 0, flag(hfNoStale))
             beq Exit
             lwz r5, 0x4(r26)
             Exit:
@@ -325,8 +135,8 @@ defineCodes:
         # Patch Disable Meteor Cancel
         patchInsertAsm "8007ac70":
             # r31 = fighter data
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
-            %`rlwinm.`(r0, r0, 0, DisableMeteorCancelFlag)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            %`rlwinm.`(r0, r0, 0, flag(ffDisableMeteorCancel))
             beq NormalCheck
             li r3, 0 # cannot meteor cancel
             blr
@@ -338,8 +148,8 @@ defineCodes:
             # r31 = ft/it gobj
             # r29 = ft/it data
 
-            lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r29)
-            %`rlwinm.`(r3, r3, 0, FlinchlessFlag)
+            lbz r3, {extFtDataOff(HeaderInfo, fighterFlags)}(r29)
+            %`rlwinm.`(r3, r3, 0, flag(ffHitByFlinchless))
             beq UnhandledExit
 
             lbz r0, 0x2222(r29)
@@ -485,7 +295,7 @@ defineCodes:
                 b Comparison
                 Loop:
                     add r5, r5, r0 # point to next hit struct
-                    addi r3, r3, {ExtHitSize} # point to next ExtHit struct
+                    addi r3, r3, {sizeof(SpecialHit)} # point to next ExtHit struct
                     Comparison:
                         cmplw r5, r4 # hit struct ptr != given hit struct ptr
                         bdnzf eq, Loop
@@ -525,7 +335,7 @@ defineCodes:
             cmplwi r3, 0
             beq Exit
             # check stretch property
-            lbz r3, {ExtHitFlags1Offset}(r3) # get flags
+            lbz r3, {extHitOff(hitFlags)}(r3) # get flags
             %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
             beq Exit
 
@@ -641,9 +451,9 @@ defineCodes:
 
             # reset temp flag to 0
             li r3, 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
-            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            rlwimi r0, r3, 1, {flag(ffSetWeight)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
 
             # now restore other modifiers to gravity + fall speed
 
@@ -781,9 +591,9 @@ defineCodes:
         patchInsertAsm "800d108c":
             # r30 = fighter data
             li r3, 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 1, {flag(ffSetWeight)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
             lwz r3, 0x10C(r30) # original code line
 
         # Reset Temp Gravity & Fall Speed At 10 Frames After Launch
@@ -793,8 +603,8 @@ defineCodes:
             cmpwi r3, 10
             blt Exit
 
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r31)
-            %`rlwinm.`(r0, r0, 0, TempGravityFallSpeedFlag)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            %`rlwinm.`(r0, r0, 0, flag(ffSetWeight))
             beq Exit
 
             mr r3, r31
@@ -847,18 +657,18 @@ defineCodes:
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             StoreWindboxFlag:
-                lbz r4, {ExtHitFlags1Offset}(r18)
-                %`rlwinm.`(r4, r4, 0, ExtHitFlags1Flinchless) # 0x8 for windbox flag
+                lbz r4, {extHitOff(hitFlags)}(r18)
+                %`rlwinm.`(r4, r4, 0, flag(hfFlinchless)) # 0x8 for windbox flag
                 li r3, 0
                 beq WindboxSet
                 li r3, 1
                 WindboxSet:
-                    lbz r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                    rlwimi r4, r3, 0, {FlinchlessFlag}
-                    stb r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                    lbz r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
+                    rlwimi r4, r3, 0, {flag(ffHitByFlinchless)}
+                    stb r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
 
-            lbz r4, {ExtHitFlags1Offset}(r18)
-            %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
+            lbz r4, {extHitOff(hitFlags)}(r18)
+            %`rlwinm.`(r4, r4, 0, flag(hfSetWeight)) # check 0x80
             beq Exit
 
             UseSetWeight:
@@ -884,18 +694,18 @@ defineCodes:
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             StoreWindboxFlag:
-                lbz r4, {ExtHitFlags1Offset}(r18)
-                %`rlwinm.`(r4, r4, 0, ExtHitFlags1Flinchless) # 0x8 for windbox flag
+                lbz r4, {extHitOff(hitFlags)}(r18)
+                %`rlwinm.`(r4, r4, 0, flag(hfFlinchless)) # 0x8 for windbox flag
                 li r3, 0
                 beq WindboxSet
                 li r3, 1
                 WindboxSet:
-                    lbz r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
-                    rlwimi r4, r3, 0, {FlinchlessFlag}
-                    stb r4, {calcOffsetFighterExtData(Flags1Offset)}(r25)
+                    lbz r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
+                    rlwimi r4, r3, 0, {flag(ffHitByFlinchless)}
+                    stb r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
 
-            lbz r4, {ExtHitFlags1Offset}(r18)
-            %`rlwinm.`(r4, r4, 0, ExtHitFlags1SetWeight) # check 0x80
+            lbz r4, {extHitOff(hitFlags)}(r18)
+            %`rlwinm.`(r4, r4, 0, flag(hfSetWeight)) # check 0x80
             beq Exit
 
             UseSetWeight:
@@ -912,8 +722,8 @@ defineCodes:
             # actually this patch works for fighter on fighter
             # doesn't have to be item on player
             lwz r3, 0x2C(r3)
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r3)
-            %`rlwinm.`(r0, r0, 0, FlinchlessFlag)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r3)
+            %`rlwinm.`(r0, r0, 0, flag(ffHitByFlinchless))
             beq OriginalExit # not flinchless, show GFX
             blr
             OriginalExit:
@@ -982,7 +792,7 @@ defineCodes:
             # r31 = fighter data
             # f2 = 3.0 multiplier
             # f0 = free to use
-            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
+            lfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r31)
             fmuls f2, f2, f0 # 3.0 * our custom sdi multiplier
             lfs f0, 0x63C(r31) # original code line
 
@@ -992,7 +802,7 @@ defineCodes:
             # r31 = fighter data
             # f2 = 3.0 multiplier
             # f0 = free to use
-            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
+            lfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r31)
             fmuls f2, f2, f0 # 3.0 * our custom sdi multiplier
             lfs f0, 0x624(r31) # original code line
 
@@ -1001,7 +811,7 @@ defineCodes:
             # SDI distance is increased or decreased based on multiplier
             # r3 = fighter data
             # f4 = 6.0 multiplier
-            lfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r3)
+            lfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r3)
             fmuls f4, f4, f0 # 6.0 * our custom sdi multiplier
             li r0, 254 # original code line
 
@@ -1012,7 +822,7 @@ defineCodes:
             # f30 = calculated hitstun after multipling by 0.4
             # r29 = fighter data
             # f0 = free
-            lfs f0, {calcOffsetFighterExtData(HitstunModifierOffset)}(r29) # load modifier
+            lfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load modifier
             fadds f30, f30, f0 # hitstun + modifier
             fctiwz f0, f30 # original code line
 
@@ -1023,15 +833,15 @@ defineCodes:
             # f4 = 1.5
             # f0 is free here
             # r31 = fighter data
-            lfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31) # load modifier
+            lfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r31) # load modifier
             fmuls f4, f4, f0 # 1.5 * our multiplier
             fsubs f2, f2, f3 # orig code line
 
         # PlayerThink_Shield/Damage Patch - Apply Hitlag on Thrown Opponents
         patchInsertAsm "8006d6e0":
             # r30 = fighter data
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            %`rlwinm.`(r0, r0, 0, ForceThrownHitlag)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            %`rlwinm.`(r0, r0, 0, flag(ffForceHitlagOnThrown))
             beq OriginalExit
             lwz r29, 0x183C(r30) # thrown damage applied
             OriginalExit:
@@ -1046,7 +856,7 @@ defineCodes:
             mr r3, r24
             mr r4, r25
             addi r5, r31, 0xDF4 # source throw hitbox
-            addi r6, r31, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            addi r6, r31, {extFtDataOff(HeaderInfo, specialThrowHit)}
             %branchLink("0x801510dc")
 
             # do hitlag vibration
@@ -1065,9 +875,9 @@ defineCodes:
 
             # enable flag that forces hitlag for the thrown victim
             li r3, 1
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            rlwimi r0, r3, 3, {ForceThrownHitlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 3, {flag(ffForceHitlagOnThrown)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
             
             Exit:
                 lbz r0, 0x2226(r27) # orig code line
@@ -1135,11 +945,11 @@ defineCodes:
                 mr r24, r3 # backup def type
 
             StoreHitlag:
-                lfs f0, {ExtHitHitlagOffset}(r28) # load hitlag mutliplier
+                lfs f0, {extHitOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
 
                 # store hitlag multi for attacker depending on entity type
                 cmpwi r25, 1
-                addi r3, r31, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
+                addi r3, r31, {extItDataOff(HeaderInfo, hitlagMultiplier)}
                 bne StoreHitlagMultiForAttacker
                 addi r3, r31, 0x1960
                 
@@ -1148,7 +958,7 @@ defineCodes:
 
                 # store hitlag multi for defender depending on entity type                
                 cmpwi r24, 1
-                addi r3, r30, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}
+                addi r3, r30, {extItDataOff(HeaderInfo, hitlagMultiplier)}
                 bne ElectricHitlagCalculate
                 addi r3, r30, 0x1960
 
@@ -1171,16 +981,16 @@ defineCodes:
             bne Epilog # not fighter, skip this section      
 
             StoreHitstunModifier:
-                lfs f0, {ExtHitHitstunModifierOffset}(r28)
-                stfs f0, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
+                lfs f0, {extHitOff(hitstunModifier)}(r28)
+                stfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
                 
             StoreSDIMultiplier:
-                lfs f0, {ExtHitSDIMultiplierOffset}(r28)
-                stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r30)
+                lfs f0, {extHitOff(sdiMultiplier)}(r28)
+                stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r30)
             
             CalculateFlippyDirection:
                 # TODO flippy for items such as goombas??
-                lbz r3, {ExtHitFlags1Offset}(r28)
+                lbz r3, {extHitOff(hitFlags)}(r28)
                 lfs f0, 0x2C(r31) # facing direction of attacker
                 %`rlwinm.`(r0, r3, 0, 26, 26) # check FlippyTypeForward
                 bne FlippyForward
@@ -1194,8 +1004,8 @@ defineCodes:
 
             SetWeight:
                 # handles the setting and reseting of temp gravity & fall speed
-                lbz r3, {ExtHitFlags1Offset}(r28)
-                %`rlwinm.`(r3, r3, 0, ExtHitFlags1SetWeight)
+                lbz r3, {extHitOff(hitFlags)}(r28)
+                %`rlwinm.`(r3, r3, 0, flag(hfSetWeight))
                 beq ResetTempGravityFallSpeed # hit isn't set weight, check to reset vars
 
                 SetTempGravityFallSpeed:
@@ -1211,30 +1021,30 @@ defineCodes:
                     stfs f0, 0x60(r4)
                     # set our temp gravity and fall speed flag to true
                     li r3, 1
-                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                    rlwimi r0, r3, 1, {TempGravityFallSpeedFlag}
-                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+                    rlwimi r0, r3, 1, {flag(ffSetWeight)}
+                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
                     b StoreDisableMeteorCancel
 
                 ResetTempGravityFallSpeed:
                     # reset gravity and fall speed only if the temp flag is true
-                    lbz r3, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                    %`rlwinm.`(r3, r3, 0, TempGravityFallSpeedFlag)
+                    lbz r3, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+                    %`rlwinm.`(r3, r3, 0, flag(ffSetWeight))
                     beq StoreDisableMeteorCancel
                     # call custom reset func
                     mr r3, r30
                     %branchLink(CustomFuncResetGravityAndFallSpeed)
     
             StoreDisableMeteorCancel:
-                lbz r3, {ExtHitFlags1Offset}(r28)
-                %`rlwinm.`(r0, r3, 0, ExtHitFlags1DisableMeteorCancel)
+                lbz r3, {extHitOff(hitFlags)}(r28)
+                %`rlwinm.`(r0, r3, 0, flag(hfNoMeteorCancel))
                 li r3, 0
                 beq MeteorCancelSet
                 li r3, 1
                 MeteorCancelSet:
-                    lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-                    rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
-                    stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+                    rlwimi r0, r3, 2, {flag(ffDisableMeteorCancel)}
+                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
             Epilog:
                 %restore
@@ -1303,8 +1113,8 @@ defineCodes:
             beq Exit
 
             # r3 = exthit
-            lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
-            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31)
+            lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+            stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r31)
 
             Exit:
                 # restore r3
@@ -1324,8 +1134,8 @@ defineCodes:
             beq Exit
 
             # r3 = exthit
-            lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
-            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r29)
+            lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+            stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r29)
 
             Exit:
                 lwz r0, 0x30(r28) # original code line
@@ -1352,7 +1162,7 @@ defineCodes:
         #     # r3 = ExtHit
         #     stw r3, 0x10(sp) # save ExtHit to stack for later use in other functions
 
-        #     lwz r3, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+        #     lwz r3, {extHitOff(hitlagMultiplier)}(r3) # load hitlag mutliplier
         #     cmpwi r3, 0
         #     mr r3, r0 # restore r3 here
         #     bne Exit
@@ -1380,7 +1190,7 @@ defineCodes:
         #     # r3 = ExtHit
         #     stw r3, 0x20(sp) # save ExtHit to stack for later use in other functions
 
-        #     lwz r0, {ExtHitHitlagOffset}(r3) # load hitlag mutliplier
+        #     lwz r0, {extHitOff(hitlagMultiplier)}(r3) # load hitlag mutliplier
         #     cmpwi r0, 0
         #     bne Exit
         #     li r31, 0
@@ -1401,8 +1211,8 @@ defineCodes:
         #     beq Exit
 
         #     # r3 = exthit
-        #     lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
-        #     stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r31)
+        #     lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+        #     stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r31)
 
         #     Exit:
         #         # restore r3
@@ -1421,8 +1231,8 @@ defineCodes:
         #     beq Exit
 
         #     # r3 = exthit
-        #     lfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
-        #     stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r29)
+        #     lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+        #     stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r29)
 
         #     Exit:
         #         # restore r6
@@ -1435,7 +1245,7 @@ defineCodes:
             # patch hitlag function used by other entities
             # r31 = itdata
             # f0 = floored hitlag frames
-            lfs f1, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}(r31)
+            lfs f1, {extItDataOff(HeaderInfo, hitlagMultiplier)}(r31)
             fmuls f0, f0, f1 # calculated hitlag frames * multiplier
             fctiwz f0, f0
 
@@ -1455,7 +1265,7 @@ defineCodes:
 
             # reset custom vars to 1.0
             lfs f0, -0x7790(rtoc) # 1.0            
-            stfs f0, {calcOffsetItemExtData(ExtItHitlagMultiplierOffset)}(r5)
+            stfs f0, {extItDataOff(HeaderInfo, hitlagMultiplier)}(r5)
 
             # reset custom vars to 0.0
             lfs f0, -0x33A8(rtoc) # 0.0, original code line
@@ -1465,7 +1275,7 @@ defineCodes:
         patchInsertAsm "802790fc":
             # r4 = hitbox id
             # r30 = item data??
-            mulli r3, r4, {ExtHitSize}
+            mulli r3, r4, {sizeof(SpecialHit)}
             addi r3, r3, {ExtItemDataOffset}
             add r3, r30, r3
             %branchLink(CustomFunctionInitDefaultEventVars)
@@ -1477,7 +1287,7 @@ defineCodes:
         patchInsertAsm "80071288":
             # r0 = hitbox ID
             # r31 = fighter data
-            mulli r3, r0, {ExtHitSize}
+            mulli r3, r0, {sizeof(SpecialHit)}
             addi r3, r3, {ExtFighterDataOffset}
             add r3, r31, r3
             %branchLink(CustomFunctionInitDefaultEventVars)
@@ -1493,12 +1303,12 @@ defineCodes:
             cmplwi r0, 1 # throw type = Release
             bge Exit
             # reset ExtHit vars
-            addi r3, r6, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            addi r3, r6, {extFtDataOff(HeaderInfo, specialThrowHit)}
             %branchLink(CustomFunctionInitDefaultEventVars)
             # r3 still contains ExtHit
             # r0 contains 0
             # default hitlag multiplier for all throws is 0x
-            stw r0, {ExtHitHitlagOffset}(r3)
+            stw r0, {extHitOff(hitlagMultiplier)}(r3)
 
             Exit:
                 addi r3, r31, 0 # orig code line
@@ -1508,7 +1318,7 @@ defineCodes:
             # reset vars that need to be 1
             # r31 = fighter data
             lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {calcOffsetFighterExtData(SDIMultiplierOffset)}(r31)
+            stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r31)
             Exit:
                 lwz r0, 0x24(sp)
 
@@ -1533,26 +1343,26 @@ defineCodes:
             # reset vars to 0
     
             # reset flinchless flag to 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            rlwimi r0, r3, 0, {FlinchlessFlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 0, {flag(ffHitByFlinchless)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
             # reset disable meteor cancel flag to 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            rlwimi r0, r3, 2, {DisableMeteorCancelFlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 2, {flag(ffDisableMeteorCancel)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
             # reset throw hitlag flag to 0
-            lbz r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
-            rlwimi r0, r3, 3, {ForceThrownHitlag}
-            stb r0, {calcOffsetFighterExtData(Flags1Offset)}(r30)
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 3, {flag(ffForceHitlagOnThrown)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
             # reset hitstun modifier to 0
-            stfs f1, {calcOffsetFighterExtData(HitstunModifierOffset)}(r30)
+            stfs f1, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
 
             # reset vars to 1.0
             lfs f0, -0x7790(rtoc) # 1.0
-            stfs f0, {calcOffsetFighterExtData(ShieldstunMultiplierOffset)}(r30)
+            stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r30)
 
             Exit:
                 stfs f1, 0x1838(r30) # original code line
@@ -1567,15 +1377,15 @@ defineCodes:
 
             # reset vars that need to be 1
             lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {ExtHitHitlagOffset}(r3)
-            stfs f0, {ExtHitSDIMultiplierOffset}(r3)
-            stfs f0, {ExtHitShieldstunMultiplierOffset}(r3)
+            stfs f0, {extHitOff(hitlagMultiplier)}(r3)
+            stfs f0, {extHitOff(sdiMultiplier)}(r3)
+            stfs f0, {extHitOff(shieldstunMultiplier)}(r3)
 
             # reset vars that need to be 0
             lfs f0, -0x778C(rtoc) # 0.0
-            stfs f0, {ExtHitHitstunModifierOffset}(r3)
+            stfs f0, {extHitOff(hitstunModifier)}(r3)
             li r0, 0
-            stw r0, {ExtHitFlags1Offset}(r3)
+            stw r0, {extHitOff(hitFlags)}(r3)
             blr
 
             OriginalExit:
@@ -1625,7 +1435,7 @@ defineCodes:
                 add r4, r4, r6
                 add r4, r30, r4                
                 # calculate ExtHit ptr offset in Ft/It data
-                mulli r3, r3, {ExtHitSize}
+                mulli r3, r3, {sizeof(SpecialHit)}
                 add r3, r3, r5
                 add r3, r30, r3
 
@@ -1644,7 +1454,7 @@ defineCodes:
                 sth r5, 0x46(sp)
                 psq_l f0, 0x44(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
                 ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-                psq_st f0, {ExtHitHitlagOffset}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+                psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
                 # read shieldstun multiplier & hitstun modifier
                 lwz r5, -0x514C(r13)
@@ -1658,10 +1468,10 @@ defineCodes:
                 sth r5, 0x42(sp)
                 psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
                 ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-                psq_st f0, {ExtHitShieldstunMultiplierOffset}(r3), 0, 7 # store results next to each other
+                psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
                 # read isSetWeight & Flippy bits & store it
                 lbz r0, 0x7(r8)
-                stb r0, {ExtHitFlags1Offset}(r3)
+                stb r0, {extHitOff(hitFlags)}(r3)
                 bl SetStaling
 
             %`bdnz+`(CopyToAllHitboxes)
@@ -1670,25 +1480,25 @@ defineCodes:
             CopyToAllHitboxes:
                 # r5 = ptr to next ExtHit
                 # r3 = ptr to old ExtHit
-                addi r5, r3, {ExtHitSize}
+                addi r5, r3, {sizeof(SpecialHit)}
                 add r4, r4, r7
                 Loop:
-                    lwz r0, {ExtHitHitlagOffset}(r3)
-                    stw r0, {ExtHitHitlagOffset}(r5)
+                    lwz r0, {extHitOff(hitlagMultiplier)}(r3)
+                    stw r0, {extHitOff(hitlagMultiplier)}(r5)
 
-                    lwz r0, {ExtHitSDIMultiplierOffset}(r3)
-                    stw r0, {ExtHitSDIMultiplierOffset}(r5)
+                    lwz r0, {extHitOff(sdiMultiplier)}(r3)
+                    stw r0, {extHitOff(sdiMultiplier)}(r5)
 
-                    lwz r0, {ExtHitShieldstunMultiplierOffset}(r3)
-                    stw r0, {ExtHitShieldstunMultiplierOffset}(r5)
+                    lwz r0, {extHitOff(shieldstunMultiplier)}(r3)
+                    stw r0, {extHitOff(shieldstunMultiplier)}(r5)
 
-                    lwz r0, {ExtHitHitstunModifierOffset}(r3)
-                    stw r0, {ExtHitHitstunModifierOffset}(r5)
+                    lwz r0, {extHitOff(hitstunModifier)}(r3)
+                    stw r0, {extHitOff(hitstunModifier)}(r5)
 
-                    lbz r0, {ExtHitFlags1Offset}(r3)
-                    stb r0, {ExtHitFlags1Offset}(r5)
+                    lbz r0, {extHitOff(hitFlags)}(r3)
+                    stb r0, {extHitOff(hitFlags)}(r5)
                     bl SetStaling
-                    addi r5, r5, {ExtHitSize}
+                    addi r5, r5, {sizeof(SpecialHit)}
                     add r4, r4, r7
                     %`bdnz+`(Loop)
 
@@ -1704,7 +1514,7 @@ defineCodes:
             SetStaling:
                 # r0 = flags
                 # r4 = ft/it hit
-                %`rlwinm.`(r0, r0, 0, ExtHitFlags1NoStale)
+                %`rlwinm.`(r0, r0, 0, flag(hfNoStale))
                 beq Return_SetStaling
                 lwz r0, 0x8(r4)
                 sth r0, 0x40(sp)
@@ -1755,7 +1565,7 @@ defineCodes:
             cmplwi r3, 7
             li r3, 0
             bne ReadEvent
-            addi r3, r30, {calcOffsetFighterExtData(ExtThrowHit0Offset)}
+            addi r3, r30, {extFtDataOff(HeaderInfo, specialThrowHit)}
             addi r4, r30, 0xDF4
             ReadEvent:
                 li r5, {ExtFighterDataOffset}
@@ -1783,6 +1593,3 @@ defineCodes:
             %branch("0x80279ad0")
             OriginalExit:
                 lwz r12, 0(r3)
-
-        patchItemDataAllocation(ExtItemDataSize)
-        patchFighterDataAllocation(ExtFighterDataSize)

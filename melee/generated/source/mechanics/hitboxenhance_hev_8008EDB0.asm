@@ -1,4 +1,4 @@
-lbz r3, 9360(r29)
+lbz r3, 9440(r29)
 rlwinm. r3, r3, 0, 1
 beq UnhandledExit
 lbz r0, 0x00002222(r29)
