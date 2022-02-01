@@ -7,6 +7,6 @@ bctrl
 cmplwi r3, 0
 beq Exit
 lfs f0, 8(r3)
-stfs f0, 9436(r29)
+stfs f0, 10684(r29)
 Exit:
 lwz r0, 0x00000030(r28)

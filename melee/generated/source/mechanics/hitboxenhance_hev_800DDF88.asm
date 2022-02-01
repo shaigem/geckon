@@ -19,8 +19,8 @@ lhz r0, 0x000018FA(r30)
 cmplwi r0, 0
 beq Exit
 li r3, 1
-lbz r0, 9440(r30)
+lbz r0, 10688(r30)
 rlwimi r0, r3, 3, 8
-stb r0, 9440(r30)
+stb r0, 10688(r30)
 Exit:
 lbz r0, 0x00002226(r27)

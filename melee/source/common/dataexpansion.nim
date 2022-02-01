@@ -40,18 +40,20 @@ type
 
     ExtItemData* = object
         sharedData*: ExtData
+        newHits*: array[AddedHitCount * ItHitSize, byte]
         hitlagMultiplier*: float32
 
     ExtFighterData* = object
         sharedData*: ExtData
         specialThrowHit*: SpecialHit
+        newHits*: array[AddedHitCount * FtHitSize, byte]
         sdiMultiplier*: float32
         hitstunModifier*: float32
         shieldstunMultiplier*: float32
         fighterFlags*: FighterFlags
-        
-template extFtDataOff*(gameInfo: GameHeaderInfo; member: untyped; t: typedesc[ExtData|ExtFighterData] = ExtFighterData): int = gameInfo.fighterDataSize + offsetOf(t, member)
-template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped; t: typedesc[ExtData|ExtItemData] = ExtItemData): int = gameInfo.itemDataSize + offsetOf(t, member)
+
+template extFtDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.fighterDataSize + offsetOf(ExtFighterData, member)
+template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.itemDataSize + offsetOf(ExtItemData, member)
 template extHitOff*(member: untyped): int = offsetOf(SpecialHit, member)
 
 proc initGameHeaderInfo(name: string; fighterDataSize, itemDataSize: int): GameHeaderInfo =
@@ -67,5 +69,3 @@ const
     MexHeaderInfo* = initGameHeaderInfo("m-ex", fighterDataSize = 
         VanillaHeaderInfo.fighterDataSize + 52, 
             itemDataSize = VanillaHeaderInfo.itemDataSize + 4)
-
-echo flag(hfStretch)
