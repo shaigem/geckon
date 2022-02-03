@@ -11,7 +11,7 @@ type
         fighterDataSize*: int
         itemDataSize*: int
     HitFlag* {.size: sizeof(uint32).} = enum
-        hfPading1,
+        hfAffectOnlyThrow,
         hfNoStale,
         hfNoMeteorCancel,
         hfFlinchless,

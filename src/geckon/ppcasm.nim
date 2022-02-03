@@ -172,3 +172,6 @@ proc `.word`*(f: int): string =
 
 proc `.align`*(n: Align): string =
     ".align " & $n
+    
+template `subic.`*(ra, rs: Register; v: Natural): string =
+    "subic. " & $ra & ", " & $rs & ", " & $v
