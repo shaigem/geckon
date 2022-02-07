@@ -375,9 +375,9 @@ defineCodes:
             # 0xC(sp) = initial world pos x, y, z
             # 0x18(sp) = position with offset
             GetInitialPos:
-                # first, get initial position with offset of 0
+                # first, get initial position
                 lwz r3, 0x48(r31) # bone jobj
-                li r4, 0 # offset ptr
+                addi r4, r29, {extHitOff(x2)} # offset ptr
                 addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
             
@@ -1403,6 +1403,9 @@ defineCodes:
             lfs f0, -0x778C(rtoc) # 0.0
             stfs f0, {extHitOff(hitstunModifier)}(r3)
             li r0, 0
+            stw r0, {extHitOff(x2)}(r3)
+            stw r0, {extHitOff(y2)}(r3)
+            stw r0, {extHitOff(z2)}(r3)
             stw r0, {extHitOff(hitFlags)}(r3)
             blr
 

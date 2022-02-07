@@ -33,6 +33,9 @@ type
         sdiMultiplier*: float32
         shieldStunMultiplier*: float32
         hitstunModifier*: float32
+        x2*: float32
+        y2*: float32
+        z2*: float32
         hitFlags*: HitFlags
 
     ExtData* = object
