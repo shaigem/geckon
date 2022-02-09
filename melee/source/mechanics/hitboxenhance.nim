@@ -1014,11 +1014,13 @@ defineCodes:
                 bne FlippyForward
                 %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
                 bne StoreCalculatedDirection
+                li r0, 0
+                stw r0, {extFtDataOff(HeaderInfo, lastHitPtr)}(r30)
                 b SetWeight
                 FlippyForward:
                     fneg f0, f0
                 StoreCalculatedDirection:
-                    stfs f0, 0x1844(r30)
+                    stw r29, {extFtDataOff(HeaderInfo, lastHitPtr)}(r30)
 
             SetWeight:
                 # handles the setting and reseting of temp gravity & fall speed
@@ -1337,6 +1339,58 @@ defineCodes:
             # r31 = fighter data
             lfs f0, -0x7790(rtoc) # 1
             stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r31)
+
+
+            lwz r3, {extFtDataOff(HeaderInfo, lastHitPtr)}(r31)
+            cmplwi r3, 0
+            beq Exit
+
+            stwu sp, -0x30(sp)
+            # first calculate pos diff x between hitbox & defender
+                
+            lfs f1, 0x4C(r3) # hitbox x
+            lfs f0, 0x1854(r31) # defender coll x
+            fsubs f2, f1, f0 # diff x
+
+            lfs f0, -0x3D60(rtoc) # calculate 20% of diff x
+            fmuls f2, f2, f0
+            stfs f2, 0x14(sp) # x
+
+            lwz r4, 0x1868(r31)
+            lwz r4, 0x2C(r4)
+
+            # check if reverse hit
+            lfs f1, 0xB0(r31) # defender x
+            lfs f0, 0xB0(r4) # attacker x
+            fsubs f1, f1, f0
+            lfs f0, -0x7700(rtoc) # 0.0
+            fcmpo cr0, f1, f0
+            %`bge+` CalcDiffY
+            # if reverse hit, negate the diff x
+            fneg f2, f2
+            CalcDiffY:
+                lfs f1, 0x50(r3) # hitbox y
+                lfs f0, 0x1858(r31) # defender coll y
+                fsubs f1, f1, f0 # diff y
+                lfs f0, -0x3D60(rtoc) # 20% of diff y
+                fmuls f1, f1, f0 # diff y * 0.20
+                stfs f1, 0x18(sp) # y
+
+
+            lfs f0, 0xCC(r4) # attacker delta y
+            fadds f1, f0, f1 # attacker y + 20% diffy
+            stfs f1, 0x90(r31) # store into kb_vel y 
+
+            lfs f1, 0x14(sp)
+            lfs f0, 0xC8(r4) # attacker delta x
+            fadds f1, f0, f1 # attacker x + 20% diff x
+            stfs f1, 0x8C(r31) # store into kb_vel x
+
+            li r0, 0
+            stw r0, {extFtDataOff(HeaderInfo, lastHitPtr)}(r31)
+            
+            addi sp, sp, 0x30
+
             Exit:
                 lwz r0, 0x24(sp)
 

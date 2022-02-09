@@ -51,6 +51,7 @@ type
         hitstunModifier*: float32
         shieldstunMultiplier*: float32
         fighterFlags*: FighterFlags
+        lastHitPtr*: int32
 
 template extFtDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.fighterDataSize + offsetOf(ExtFighterData, member)
 template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.itemDataSize + offsetOf(ExtItemData, member)
