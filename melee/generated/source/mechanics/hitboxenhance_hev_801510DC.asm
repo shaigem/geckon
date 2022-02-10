@@ -73,11 +73,20 @@ rlwinm. r0, r3, 0, 25, 25
 bne StoreCalculatedDirection
 li r0, 0
 stw r0, 10692(r30)
+stw r0, 10696(r30)
+stw r0, 10700(r30)
+stw r0, 10704(r30)
 b SetWeight
 FlippyForward:
 fneg f0, f0
 StoreCalculatedDirection:
 stw r29, 10692(r30)
+lfs f0, 0x0000004C(r29)
+stfs f0, 10696(r31)
+lfs f0, 0x00000050(r29)
+stfs f0, 10700(r31)
+lfs f0, 0x00000054(r29)
+stfs f0, 10704(r31)
 SetWeight:
 lbz r3, 16(r28)
 rlwinm. r3, r3, 0, 128
