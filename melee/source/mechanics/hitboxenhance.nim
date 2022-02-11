@@ -1355,8 +1355,10 @@ defineCodes:
                 lwz r0, 0x18AC(r31) # time_since_hit in frames
                 cmpwi r0, 5
                 
-                lfs f1, -0x778C(rtoc) # 0.0
-                lfs f2, -0x778C(rtoc) # 0.0
+#                lfs f1, -0x778C(rtoc) # 0.0
+#                lfs f2, -0x778C(rtoc) # 0.0
+                lfs f1, 0x8C(r31)
+                lfs f2, 0x90(r31)
                 bge NoMoreTime
 
                 bl DataBob
@@ -1372,10 +1374,8 @@ defineCodes:
                     mr r3, r28 # gobj
                     lfs f1, 0x8(r5) # 
                     lfs f2, 0xC(r5)
-                    bl SmoothDamp
+                    bl ToPointFunc
 
-                lfs f1, 0x8C(r31)
-                lfs f2, 0x90(r31)
                 bl CalcAttackerMomentum
                 b Epilog
                 CalcAttackerMomentum:
@@ -1431,263 +1431,23 @@ defineCodes:
                 %branchLink("0x8000D4F8")
                 #bl func_8000D4F8
                 lfs f1, 0x2c(r1)
-                lfs f0, 0x30(r1)
-                fmuls f2, f1, f1
-                lfs f3, 0x34(r1)
-                fmuls f1, f0, f0
-                lfs f0, -0x57E8(rtoc)
-                fmuls f3, f3, f3
-                fadds f1, f2, f1
-                fadds f29, f3, f1
-                fcmpo cr0, f29, f0
-                ble lbl_8015BEF8
-                frsqrte f1, f29
-                lfd f3, -0x57D8(rtoc)
-                lfd f2, -0x57D0(rtoc)
-                fmul f0, f1, f1
-                fmul f1, f3, f1
-                fnmsub f0, f29, f0, f2
-                fmul f1, f1, f0
-                fmul f0, f1, f1
-                fmul f1, f3, f1
-                fnmsub f0, f29, f0, f2
-                fmul f1, f1, f0
-                fmul f0, f1, f1
-                fmul f1, f3, f1
-                fnmsub f0, f29, f0, f2
-                fmul f0, f1, f0
-                fmul f0, f29, f0
-                frsp f0, f0
-                stfs f0, 0x24(r1)
-                lfs f29, 0x24(r1)
-                lbl_8015BEF8:
-                    fcmpo cr0, f29, f30
-                    bge lbl_8015BF0C
-                    b lbl_8015BF40
-                lbl_8015BF0C:
-#                    stfs f29, 0(r30)
-                    addi r3, r1, 0x2c
-                    %branchLink("0x8000D2EC")
-#                    bl func_8000D2EC
-                    fmuls f1, f29, f31
-                    lfs f0, 0x2c(r1)
-                    fmuls f0, f0, f1
-                    stfs f0, 0x2c(r1)
-                    lfs f0, 0x30(r1)
-                    fmuls f0, f0, f1
-                    stfs f0, 0x30(r1)
-                    lfs f0, 0x34(r1)
-                    fmuls f0, f0, f1
-                    stfs f0, 0x34(r1)
-                lbl_8015BF40:
-                    lfs f1, 0x2c(r1)
-#                    stfs f0, 0x8c(r31)
-                    lfs f2, 0x30(r1)
-#                    stfs f0, 0x90(r31)
-                    lwz r0, 0x5c(r1)
-                    lfd f31, 0x50(r1)
-                    lfd f30, 0x48(r1)
-                    lfd f29, 0x40(r1)
-                    lwz r31, 0x3c(r1)
-                    lwz r30, 0x38(r1)
-                    addi r1, r1, 0x58
-                    mtlr r0
-                    blr
+                lfs f2, 0x30(r1)
+                lfs f0, -0x3D60(rtoc) # 0.20
+
+                fmuls f1, f1, f0
+                fmuls f2, f2, f0
+
+                lwz r0, 0x5c(r1)
+                lfd f31, 0x50(r1)
+                lfd f30, 0x48(r1)
+                lfd f29, 0x40(r1)
+                lwz r31, 0x3c(r1)
+                lwz r30, 0x38(r1)
+                addi r1, r1, 0x58
+                mtlr r0
+                blr
             
-            SmoothDamp:
-                # r3 = current gobj
-                # r4 = vec target
-                # f1 = smoothTime
-                # f2 = maxSpeed
-                # f3 = deltaTime?
-                mflr r0
-                stw r0, 4(r1)
-                stwu r1, -0x58(r1)
-                stfd f31, 0x50(r1)
-                fmr f31, f2
-                stfd f30, 0x48(r1)
-                fmr f30, f1
-                stfd f29, 0x40(r1)
-                stw r31, 0x3c(r1)
-                stw r30, 0x38(r1)
-
-                # f31 = maxSpeed
-                # f30 = smoothTime
-                # f29 = mag
-                # r30 = original target to
-
-                mr r30, r4
-
-                # 0x2C change_x
-                # 0x30 change_y
-                # 0x24 mag
-                # 0x20 maxChange
-
-                addi r5, r1, 0x2c
-                lwz r31, 0x2c(r3)
-                addi r3, r31, 0xB0 # current pos
-                addi r4, r4, 0 # target
-                %branchLink("0x8000D4F8") # vector subtract
-                lfs f1, 0x2c(r1) # change_x
-                lfs f0, 0x30(r1) # change_y
-                fmuls f2, f1, f1 # change_x^2
-                lfs f3, 0x34(r1) # change_z
-                fmuls f1, f0, f0 # change_y^2
-                fmuls f3, f3, f3 # change_z^2
-                fadds f1, f2, f1 # change_x^2 + change_y^2
-                fadds f29, f3, f1 # sqr_mag = change_x^2 + change_y^2 + change_z^2
-
-                fmuls f0, f31, f30 # maxChange = maxSpeed * smoothTime
-                stfs f0, 0x20(sp)
-                fmuls f0, f0, f0 # maxChangeSq = maxChange * maxChange
-                fcmpo cr0, f29, f0 # sqrmag > maxChangeSq
-                bgt CalcChange
-                b CalcTargets
-                CalcChange:
-                    # calculate mag
-                    frsqrte f1, f29
-                    lfd f3, -0x57D8(rtoc)
-                    lfd f2, -0x57D0(rtoc)
-                    fmul f0, f1, f1
-                    fmul f1, f3, f1
-                    fnmsub f0, f29, f0, f2
-                    fmul f1, f1, f0
-                    fmul f0, f1, f1
-                    fmul f1, f3, f1
-                    fnmsub f0, f29, f0, f2
-                    fmul f1, f1, f0
-                    fmul f0, f1, f1
-                    fmul f1, f3, f1
-                    fnmsub f0, f29, f0, f2
-                    fmul f0, f1, f0
-                    fmul f0, f29, f0
-                    frsp f0, f0
-                    stfs f0, 0x24(r1)
-                    lfs f29, 0x24(r1) # mag
-                    
-                    lfs f0, 0x2c(r1) # change_x
-                    lfs f1, 0x20(sp) # maxChange
-                    fdivs f0, f0, f29 # (change_x / mag)
-                    fmuls f0, f0, f1 # (change_x / mag) * maxChange
-                    stfs f0, 0x2C(sp)
-
-                    lfs f0, 0x30(r1) # change_y
-                    fdivs f0, f0, f29 # (change_y / mag)
-                    fmuls f0, f0, f1 # (change_y / mag) * maxChange
-                    stfs f0, 0x30(sp)
-
-                CalcTargets:
-                    lfs f0, -0x7F64(rtoc) # 2.0
-                    fdivs f0, f0, f30 # omega = 2F / smoothTime
-                    # x = omega * deltaTime TODO
-                    fmuls f1, f0, f0 # x^2
-
-                    bl DataBob
-                    mflr r3
-
-                    lfs f2, 0(r3) # 0.48
-                    fmuls f2, f2, f1 # 0.48F * x * x
-
-                    lfs f3, 0x4(r3) # 0.235
-                    fmuls f3, f3, f1 # 0.235F * x * x
-                    fmuls f3, f3, f0 # (0.235F * x * x) * x
-
-                    fadds f1, f2, f3 # 0.48F * x * x + (0.235F * x * x) * x
-
-                    lfs f2, -0x7790(rtoc) # 1.0
-                    fadds f2, f2, f0 # 1.0 + x
-                    fadds f2, f2, f1 # (1.0 + x) + (0.48F * x * x) + (0.235F * x * x) * x
-                    lfs f1, -0x7790(rtoc)
-                    fdivs f7, f1, f2 # exp = 1F / (1.0 + x) + (0.48F * x * x) + (0.235F * x * x) * x
-
-                    lfs f2, 0x2C(sp) # change_x 
-                    fmuls f2, f0, f2 # omega * change_x
-                    lfs f3, 0x8C(r31) # currentVelocityX
-                    fadds f5, f3, f2 # temp_x = currentVelocityX + omega * change_x
-
-                    fmuls f2, f0, f5 # omega * temp_x 
-                    lfs f4, 0x8C(r31) # currentVelocityX
-                    fsubs f4, f4, f2 # currentVelocityX - omega * temp_x
-                    fmuls f4, f4, f7 # (currentVelocityX - omega * temp_x) * exp
-                    stfs f4, 0x8C(r31)
-
-
-                    lfs f2, 0x30(sp) # change_y
-                    fmuls f2, f0, f2 # omega * change_y
-                    lfs f3, 0x90(r31) # currentVelocityY
-                    fadds f6, f3, f2 # temp_y = currentVelocityY + omega * change_Y
-                    
-                    fmuls f2, f0, f6 # omega * temp_x 
-                    lfs f4, 0x90(r31) # currentVelocityY
-                    fsubs f4, f4, f2 # currentVelocityY - omega * temp_x
-                    fmuls f4, f4, f7 # (currentVelocityY - omega * temp_x) * exp
-                    stfs f4, 0x90(r31)
-                    
-                    # f5 = temp_x
-                    # f6 = temp_y
-                    # f7 = exp
-                    # 0x10 = outMinusOrig_x * origMinusCurrent_x
-
-                    lfs f0, 0xB0(r31) # current.x
-                    lfs f1, 0x2C(sp) # change_x
-                    fsubs f0, f0, f1 # target.x = current.x - change_x
-                    fadds f1, f1, f5 # change_x + temp_x
-                    fmuls f1, f1, f7 # (change_x + temp_x) * exp
-                    fadds f0, f0, f1 # output_x = target.x + (change_x + temp_x) * exp
-                    
-                    lfs f1, 0(r30) # originalTo.x
-                    fsubs f0, f0, f1 # outMinusOrig_x = ouput_x - originalTo.x
-                    
-                    lfs f2, 0xB0(r31) # current.x
-                    fsubs f1, f1, f2 # origMinusCurrent_x = originalTo.x - current.x
-                    fmuls f1, f0, f1 # outMinusOrig_x * origMinusCurrent_x
-                    stfs f1, 0x10(sp)
-                    
-                    lfs f0, 0xB4(r31) # current.y
-                    lfs f1, 0x30(sp) # change_y
-                    fsubs f0, f0, f1 # target.y = current.y - change_y
-                    fadds f1, f1, f6 # change_y + temp_y
-                    fmuls f1, f1, f7 # (change_y + temp_y) * exp
-                    fadds f0, f0, f1 # output_y = target.y + (change_x + temp_x) * exp
-                    
-                    lfs f1, 0x4(r30) # originalTo.y
-                    fsubs f0, f0, f1 # outMinusOrig_y = ouput_y - originalTo.y
-                    
-                    lfs f2, 0xB4(r31) # current.y
-                    fsubs f1, f1, f2 # origMinusCurrent_y = originalTo.y - current.y
-                    fmuls f1, f0, f1 # outMinusOrig_y * origMinusCurrent_y
-                    stfs f1, 0x14(sp)
-
-                    lfs f0, 0x10(sp) # (origMinusCurrent_x * outMinusOrig_x)
-                    fadds f1, f0, f1 # origMinusCurrent_x * outMinusOrig_x + origMinusCurrent_y * outMinusOrig_y
-
-                    lfs f0, -0x7700(rtoc) # 0.0
-
-                    fcmpo cr0, f1, f0
-                    bgt Omg
-
-                    b SmoothDamp_Exit
-
-                    Omg:
-                        stfs f0, 0x8C(r31)
-                        stfs f0, 0x90(r31)
-
-
-
-
-                # -0x7F80(rtoc) = 0.0001
-                #smoothTime = Mathf.Max(0.0001F, smoothTime);
-                SmoothDamp_Exit:
-                    lwz r0, 0x5c(r1)
-                    lfd f31, 0x50(r1)
-                    lfd f30, 0x48(r1)
-                    lfd f29, 0x40(r1)
-                    lwz r31, 0x3c(r1)
-                    lwz r30, 0x38(r1)
-                    addi r1, r1, 0x58
-                    mtlr r0
-                    blr
-        
+           
             Data:
                 blrl
                 %`.float`(0.20)
@@ -1718,7 +1478,7 @@ defineCodes:
                     b SetYVel
 
                     CheckNegative:
-                        lfs f0, -0x36d8(rtoc) # -3
+                        lfs f0, -0x7640(rtoc) # -1
                         fcmpo cr0, f2, f0
                         bge SetYVel
                         fmr f2, f0
@@ -1740,7 +1500,35 @@ defineCodes:
                         fmr f1, f0
 
                     SetXVel:
-                        stfs f1, 0x8C(r31) # store into kb_vel x                             
+                        stfs f1, 0x8C(r31) # store into kb_vel x
+
+# meteor cancelling disabled
+#[                     fmr f0, f2
+                    fmr f2, f1
+                    fmr f1, f0
+                    %branchLink("0x80022c30") # atan2
+                    lfs f0, -0x76c4(rtoc) # 180/pi. Convert radians to degrees
+                    fmuls f1, f0, f1
+                    fctiw f0, f1
+                    stfd f0, -8(sp)
+                    lwz r3, -4(sp)
+                    cmpwi r3, 0 # force angle into [0, 360]
+                    bge positive_angle # (so meteor cancelling works)
+                    addi r3, r3, 360
+                    positive_angle:
+                        # check for meteor cancelling
+                        li r0, 230
+                        cmplw r0, r3
+                        bgt Epilog
+                        li r0, 310
+                        cmplw r3, r0
+                        bgt Epilog
+                        # allow meteor cancelling
+                        li r0, 1
+                        stb r0, 0x235A(r31) # can meteor cancel
+                        lwz r3, -0x514C(r13)
+                        lwz r0, 0x7f0(r3) # window of 8 frames
+                        stb r0, 0x235B(r31) # window ]#
                 Epilog:
                     %restore
 
