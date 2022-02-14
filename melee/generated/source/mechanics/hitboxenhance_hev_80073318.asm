@@ -6,13 +6,13 @@ rlwinm. r3, r3, 0, 1
 li r3, 0
 li r4, 0
 beq ReadEvent
-addi r3, r30, 9408
+addi r3, r30, 9760
 addi r4, r30, 0x00000DF4
 ReadEvent:
 li r5, 9248
 li r6, 2324
 li r7, 312
-li r8, 5856
+li r8, 6252
 lis r12, 0x801510e0 @h
 ori r12, r12, 0x801510e0 @l
 mtctr r12

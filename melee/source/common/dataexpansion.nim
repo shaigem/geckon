@@ -22,10 +22,12 @@ type
     HitFlags = set[HitFlag]
 
     FighterFlag* {.size: sizeof(uint32).} = enum
+        # should contain only 8 flags
         ffHitByFlinchless,
         ffSetWeight,
         ffDisableMeteorCancel,
-        ffForceHitlagOnThrown
+        ffForceHitlagOnThrown,
+        ffAttackVecPull # 367 autolink
     FighterFlags = set[FighterFlag]
 
     SpecialHit* = object
@@ -33,27 +35,31 @@ type
         sdiMultiplier*: float32
         shieldStunMultiplier*: float32
         hitstunModifier*: float32
-        x2*: float32
-        y2*: float32
-        z2*: float32
         hitFlags*: HitFlags
-
-    ExtData* = object
-        specialHits*: array[NewHitboxCount, SpecialHit]
+        offsetX2*: float32
+        offsetY2*: float32
+        offsetZ2*: float32
+        padding*: array[8, float32] # spots for a few more variables
+    # variables should be added at the end of each ExtItem/FighterData struct
+    # should not delete or insert between
 
     ExtItemData* = object
-        sharedData*: ExtData
+        specialHits*: array[NewHitboxCount, SpecialHit]
         newHits*: array[AddedHitCount * ItHitSize, byte]
         hitlagMultiplier*: float32
 
     ExtFighterData* = object
-        sharedData*: ExtData
+        specialHits*: array[NewHitboxCount, SpecialHit]
         specialThrowHit*: SpecialHit
         newHits*: array[AddedHitCount * FtHitSize, byte]
         sdiMultiplier*: float32
         hitstunModifier*: float32
         shieldstunMultiplier*: float32
         fighterFlags*: FighterFlags
+        # autolink related
+        lastHitboxCollCenterX*: float32
+        lastHitboxCollCenterY*: float32
+        lastHitboxCollCenterZ*: float32
 
 template extFtDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.fighterDataSize + offsetOf(ExtFighterData, member)
 template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.itemDataSize + offsetOf(ExtItemData, member)

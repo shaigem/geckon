@@ -344,6 +344,7 @@ defineCodes:
             stwu sp, -0x30(sp)
             stw r31, 0x2C(sp)
             stw r30, 0x28(sp)
+            stw r29, 0x24(sp)
 
             mr r31, r4 # hit struct
             mr r30, r3 # gobj
@@ -352,6 +353,7 @@ defineCodes:
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
+            mr r29, r3 # ExtHit
             # check stretch property
             lbz r3, {extHitOff(hitFlags)}(r3) # get flags
             %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
@@ -377,7 +379,7 @@ defineCodes:
             GetInitialPos:
                 # first, get initial position
                 lwz r3, 0x48(r31) # bone jobj
-                addi r4, r29, {extHitOff(x2)} # offset ptr
+                addi r4, r29, {extHitOff(offsetX2)} # offset ptr
                 addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
             
@@ -404,6 +406,7 @@ defineCodes:
                 lwz r0, 0x34(sp)
                 lwz r31, 0x2C(sp)
                 lwz r30, 0x28(sp)
+                lwz r29, 0x24(sp)
                 addi sp, sp, 0x30
                 mtlr r0
                 blr
@@ -1403,9 +1406,9 @@ defineCodes:
             lfs f0, -0x778C(rtoc) # 0.0
             stfs f0, {extHitOff(hitstunModifier)}(r3)
             li r0, 0
-            stw r0, {extHitOff(x2)}(r3)
-            stw r0, {extHitOff(y2)}(r3)
-            stw r0, {extHitOff(z2)}(r3)
+            stw r0, {extHitOff(offsetX2)}(r3)
+            stw r0, {extHitOff(offsetY2)}(r3)
+            stw r0, {extHitOff(offsetZ2)}(r3)
             stw r0, {extHitOff(hitFlags)}(r3)
             blr
 

@@ -21,7 +21,7 @@ add r4, r4, r8
 CalcNormal:
 add r4, r4, r6
 add r4, r30, r4
-mulli r3, r3, 20
+mulli r3, r3, 64
 add r3, r3, r5
 add r3, r30, r3
 BeginReadData:
@@ -55,7 +55,7 @@ cmplwi r10, 0
 beq Exit
 CopyToAllHitboxes:
 li r10, 1
-addi r5, r3, 20
+addi r5, r3, 64
 add r4, r4, r7
 Loop:
 cmpwi r10, 4
@@ -73,7 +73,7 @@ stw r0, 12(r5)
 lbz r0, 16(r3)
 stb r0, 16(r5)
 bl SetBaseDamage
-addi r5, r5, 20
+addi r5, r5, 64
 add r4, r4, r7
 addi r10, r10, 1
 cmplwi r10, 8

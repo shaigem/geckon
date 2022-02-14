@@ -1,7 +1,7 @@
 lwz r3, 0x000018AC(r31)
 cmpwi r3, 10
 blt Exit
-lbz r0, 10688(r31)
+lbz r0, 11084(r31)
 rlwinm. r0, r0, 0, 2
 beq Exit
 mr r3, r31
