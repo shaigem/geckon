@@ -57,7 +57,7 @@ import ../common/dataexpansion
       - true]#
 
 const
-    CodeVersion = "v1.8.0"
+    CodeVersion = "v1.8.1"
     CodeName = "Hitbox Extension " & CodeVersion
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -1124,6 +1124,10 @@ defineCodes:
             # r29 = src data
             # free regs to use: r0, f1, f0
             # get ExtHit
+
+            # backup r3 to stack
+            stw r3, 0x24(sp)
+
             lwz r3, 0(r29) # src gobj
             mr r4, r30 # hit struct
             %branchLink("0x801510d4")

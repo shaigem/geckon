@@ -1,3 +1,4 @@
+stw r3, 0x00000024(sp)
 lwz r3, 0(r29)
 mr r4, r30
 lis r12, 0x801510d4 @h
