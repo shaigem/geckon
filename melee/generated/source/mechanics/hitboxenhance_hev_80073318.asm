@@ -5,10 +5,10 @@ lbz r3, 0x00000007(r3)
 rlwinm. r3, r3, 0, 1
 li r3, 0
 li r4, 0
-beq ReadEvent
+beq ReadEvent_CustomEvent
 addi r3, r30, 9408
 addi r4, r30, 0x00000DF4
-ReadEvent:
+ReadEvent_CustomEvent:
 li r5, 9248
 li r6, 2324
 li r7, 312
