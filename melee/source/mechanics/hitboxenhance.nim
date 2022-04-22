@@ -57,7 +57,7 @@ import ../common/dataexpansion
       - true]#
 
 const
-    CodeVersion = "v1.8.1"
+    CodeVersion = "v1.8.2"
     CodeName = "Hitbox Extension " & CodeVersion
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -855,15 +855,17 @@ defineCodes:
             li r0, 254 # original code line
 
         # Hitstun mechanics patch
-        patchInsertAsm "8008dd70":
+        patchInsertAsm "8008dd90":
             # Adds or removes frames of hitstun
+            # Note: does not cause moves to tumble earlier or later @ 1.8.2
             # 8008dd68: loads global hitstun multiplier of 0.4 from plco
-            # f30 = calculated hitstun after multipling by 0.4
             # r29 = fighter data
-            # f0 = free
-            lfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load modifier
-            fadds f30, f30, f0 # hitstun + modifier
-            fctiwz f0, f30 # original code line
+            # f0 = original calculated hitstun frames to set for player
+            # f1 = free
+            # f30 = calculated hitstun frames used to determine damage animations, etc.
+            lfs f1, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load modifier
+            fadds f0, f0, f1 # orig hitstun + modifier
+            stfs f0, 0x2340(r29) # orig line, store hitstun for player
 
         # Shieldstun multiplier mechanics patch
         patchInsertAsm "8009304c":
