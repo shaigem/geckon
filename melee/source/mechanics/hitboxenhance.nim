@@ -57,7 +57,7 @@ import ../common/dataexpansion
       - true]#
 
 const
-    CodeVersion = "v1.8.2"
+    CodeVersion = "v2.0.0"
     CodeName = "Hitbox Extension " & CodeVersion
     CodeAuthors = ["sushie"]
     CodeDescription = "Allows you to modify hitlag, SDI, hitstun and more!"
@@ -70,26 +70,6 @@ const
     CustomFunctionReadEvent = "0x801510e0"
     CustomFunctionInitDefaultEventVars = "0x801510e4"
     CustomFuncResetGravityAndFallSpeed = "0x801510e8"
-
-
-proc handleCustomFighterEvent(): string =
-    ppc:
-        # use throw hitbox if flag is set to true (only for players)
-        lwz r3, 0x8(r29)
-        lbz r3, 0x7(r3) # flags 1
-        %`rlwinm.`(r3, r3, 0, flag(hfAffectOnlyThrow))
-        li r3, 0
-        li r4, 0
-        beq ReadEvent_CustomEvent
-        addi r3, r30, {extFtDataOff(HeaderInfo, specialThrowHit)}
-        addi r4, r30, 0xDF4
-        ReadEvent_CustomEvent:
-            li r5, {ExtFighterDataOffset}
-            li r6, 2324
-            li r7, {FtHitSize}
-            li r8, {extFtDataOff(HeaderInfo, newHits) - ((OldHitboxCount * FtHitSize) + 2324)}
-            %branchLink(CustomFunctionReadEvent)
-
 
 defineCodes:
     createCode CodeName:
@@ -1582,62 +1562,3 @@ defineCodes:
 
             OriginalExit:
                 fmr f3, f1
-
-        # Patch for Subaction_FastForward
-        patchInsertAsm "80073430":
-            # use 0xF1 as code, make sure r28 == 0x3c
-            # r27 = item/fighter gobj
-            # r29 = script struct ptr
-            # r30 = item/fighter data
-            subi r0, r28, 10 # orig code line
-            cmpwi r28, 0x3C # Hitbox Extension Custom ID
-            bne OriginalExit
-            %handleCustomFighterEvent()
-            %branch("0x80073450")
-            OriginalExit:
-                %emptyBlock
-
-        # Patch for FastForwardSubactionPointer2
-        patchInsertAsm "80073574":
-           # fixes a crash with Kirby when using inhale with a custom subaction event
-           # we only need to skip
-            lwz r4, 0x8(r29) # orig code line, current action ptr
-            cmpwi r28, 0x3C # Hitbox Extension Custom ID
-            bne OriginalExit
-            addi r4, r4, {CustomEventLength}
-            stw r4, 0x8(r29)
-            %branch("0x80073588")
-            OriginalExit:
-                %emptyBlock
-
-        # Custom Fighter Subaction Event
-        patchInsertAsm "80073318":
-            # use 0xF1 as code, make sure r28 == 0x3c
-            # r27 = item/fighter gobj
-            # r29 = script struct ptr
-            # r30 = item/fighter data
-            cmpwi r28, 0x3C
-            %`bne+`(OriginalExit)
-            %handleCustomFighterEvent()
-            %branch("0x8007332c")
-            OriginalExit:
-                lwz r12, 0(r3)
-
-        # Custom Item Subaction Event
-        patchInsertAsm "80279abc":
-            # use 0xF1 as code, make sure r28 == 0x3c
-            # r27 = item/fighter gobj
-            # r29 = script struct ptr
-            # r30 = item/fighter data
-            cmpwi r28, 0x3C
-            %`bne+`(OriginalExit)
-            li r3, 0
-            li r4, 0
-            li r5, {ExtItemDataOffset}
-            li r6, 1492
-            li r7, {ItHitSize}
-            li r8, {extItDataOff(HeaderInfo, newHits) - ((OldHitboxCount * ItHitSize) + 1492)}
-            %branchLink(CustomFunctionReadEvent)
-            %branch("0x80279ad0")
-            OriginalExit:
-                lwz r12, 0(r3)
