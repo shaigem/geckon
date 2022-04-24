@@ -1428,136 +1428,175 @@ defineCodes:
             # r6 = Hit struct offset
             # r7 = Hit struct size
             # r8 = New Hit Struct Offset
+            # r9 = hitbox extension type
             # r30 = item/fighter data
             # r27 = item/fighter gobj
-            mflr r0
-            stw r0, 0x4(sp)
-            stwu sp, -0x50(sp)
+            # r29 = command info
 
-            lwz r9, 0x8(r29) # load current subaction ptr
-            li r10, 0 # used for checking if we need to loop for all hitboxes
+#            cmpwi r9, 1 # type == Advanced
+#            beq ParseBegin
 
-            cmplwi r4, 0
-            bne BeginReadData
 
-            CheckApplyToPrevious:
-                lbz r0, 0x1(r9)
-                %`rlwinm.`(r10, r0, 0, 27, 27) # 0x10, apply to all hitboxes 0-3
-                rlwinm r3, r0, 27, 29, 31 # 0xE0 hitbox id/type
-                beq CalculateHitStructs # if not set, just loop once
-                # otherwise, apply the properties to the given hitbox id
-                li r3, 0 # set starting id to 0
 
-            CalculateHitStructs:
-                # input:
-                # r3 = hitbox id
-                # calculate normal Hit struct ptr
-                mullw r4, r3, r7
-                cmplwi r3, {OldHitboxCount}
-                blt CalcNormal
-                add r4, r4, r8
-                CalcNormal:
-                    add r4, r4, r6
-                    add r4, r30, r4                
-                # calculate ExtHit ptr offset in Ft/It data
-                mulli r3, r3, {sizeof(SpecialHit)}
-                add r3, r3, r5
-                add r3, r30, r3
+            ParseBegin:
+                # prolog
+                mflr r0
+                stw r0, 0x4(sp)
+                stwu sp, -0x50(sp)
+                stw r31, 0x4C(sp)
+                stw r26, 0x48(sp)
+                stw r25, 0x44(sp)
+                stw r24, 0x40(sp)
+                stw r23, 0x3C(sp)
+                stw r22, 0x38(sp)
+                stw r21, 0x34(sp)
 
-            BeginReadData:
-                # r3 = ExtHit ptr
-                # r4 = Hit struct
-                # load 0.01 to use for multipliying our multipliers
-                lwz r5, -0x514C(r13) # static vars??
-                lfs f1, 0xF4(r5) # load 0.01 into f1
-                # hitlag & SDI multipliers
-                lhz r5, 0x1(r9)
-                rlwinm r5, r5, 0, 0xFFF # 0xFFF, load hitlag multiplier
-                sth r5, 0x44(sp)
-                lhz r5, 0x3(r9)
-                rlwinm r5, r5, 28, 0xFFF # load SDI multiplier
-                sth r5, 0x46(sp)
-                psq_l f0, 0x44(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
-                ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-                psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+                lwz r31, 0x8(r29) # current subaction ptr
+                mr r26, r5
+                mr r25, r6
+                mr r24, r7
+                mr r23, r8
+                li r22, 0 # loop counter
+                li r21, 0 # used to check if applying to all active hitboxes or not
 
-                # read shieldstun multiplier & hitstun modifier
-                lwz r5, -0x514C(r13)
-                psq_l f1, 0xF4(r5), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
-                lhz r5, 0x4(r9)
-                rlwinm r5, r5, 0, 0xFFF # load shieldstun multiplier
-                sth r5, 0x40(sp)
-                lbz r5, 0x6(r9) # read hitstun modifier byte
-                slwi r5, r5, 24
-                srawi r5, r5, 24
-                sth r5, 0x42(sp)
-                psq_l f0, 0x40(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
-                ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-                psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
-                # read isSetWeight & Flippy bits & store it
-                lbz r0, 0x7(r9)
-                stb r0, {extHitOff(hitFlags)}(r3)
-                bl SetBaseDamage
+                # if givenExtHitPtr != null && givenExtHitPtr != null
+                # just parse the event data and exit
+                cmplwi r3, 0
+                beq ParseHeader
+                cmplwi r4, 0
+                beq ParseHeader
+                b ParseEventData
 
-            # don't loop if apply to all hitboxes is not enabled
-            cmplwi r10, 0
-            beq Exit
+                ParseHeader:
+                    lbz r0, 0x1(r31) # load first byte
+                    rlwinm r3, r0, 27, 29, 31 # 0xE0 hitbox id/type
+                    %`rlwinm.`(r21, r0, 0, 27, 27) # 0x10, apply to all active hitboxes
+                    beq GetHitStructPtrs
 
-            CopyToAllHitboxes:
-                # r5 = ptr to next ExtHit
-                # r4 = ptr to Ft/ItHit
-                # r3 = ptr to old ExtHit
-                # r10 = index loop counter
-                li r10, 1 # hitbox id to 1
-                addi r5, r3, {sizeof(SpecialHit)} # next ExtHit struct
-                add r4, r4, r7 # next Ft/It Hit struct
-                Loop:
-                    cmpwi r10, 4
-                    bne Body
-                    add r4, r4, r8
-                    Body:
-                        lwz r0, {extHitOff(hitlagMultiplier)}(r3)
-                        stw r0, {extHitOff(hitlagMultiplier)}(r5)
+                # find all active hitboxes
+                FindActiveHitboxes:
+                    li r3, 0
+                    b GetHitStructPtrs
+                    FindActiveHitboxes_Check:
 
-                        lwz r0, {extHitOff(sdiMultiplier)}(r3)
-                        stw r0, {extHitOff(sdiMultiplier)}(r5)
+                        # skip non-active hitboxes
+                        lwz r0, 0(r4)
+                        cmpwi r0, 0
+                        beq FindActiveHitboxes_Next
+                        
+                        # get a template ExtHit if it doesn't exist
+                        cmplwi r26, 0
+                        beq ParseEventData
+                        
+                        # if there is a template ExtHit, we will memcpy to the next ExtHit
+                        mr r25, r4 # backup r4
+                        # r3 dest ExtHit                        
+                        mr r4, r26 # src ExtHit
+                        li r5, {sizeof(SpecialHit)}
+                        %branchLink("0x800031f4")
+                        # restore r4
+                        mr r4, r25
+                        b ParseEventData_SetNormalHitboxValues
 
-                        lwz r0, {extHitOff(shieldstunMultiplier)}(r3)
-                        stw r0, {extHitOff(shieldstunMultiplier)}(r5)
+                    FindActiveHitboxes_Next:
+                        addi r22, r22, 1
+                        cmplwi r22, 4
+                        add r4, r4, r24 # next Ft/ItHit struct
+                        addi r3, r3, {sizeof(SpecialHit)} # next ExtHit struct
+                        blt FindActiveHitboxes_Check
 
-                        lwz r0, {extHitOff(hitstunModifier)}(r3)
-                        stw r0, {extHitOff(hitstunModifier)}(r5)
+                b Exit
 
-                        lbz r0, {extHitOff(hitFlags)}(r3)
-                        stb r0, {extHitOff(hitFlags)}(r5)
-                        bl SetBaseDamage
+                GetHitStructPtrs:
+                    # inputs
+                    # r3 = hitbox id
+                    # outputs
+                    # r3 = ExtHit Ptr
+                    # r4 = Hit ptr
+                    mullw r4, r3, r24
+                    cmplwi r3, {OldHitboxCount}
+                    blt CalcNormal
+                    add r4, r4, r23
+                    CalcNormal:
+                        add r4, r4, r25
+                        add r4, r30, r4                
+                    # calculate ExtHit ptr offset in Ft/It data
+                    mulli r3, r3, {sizeof(SpecialHit)}
+                    add r3, r3, r26
+                    add r3, r30, r3
 
-                    addi r5, r5, {sizeof(SpecialHit)} # point to next ExtHit struct
-                    add r4, r4, r7 # point to next Ft/It Hit struct
-                    addi r10, r10, 1 # hitboxId++
-                    cmplwi r10, {NewHitboxCount}
-                    %`blt+`(Loop)
+                    li r26, 0
 
-            Exit:
-                # advance script
-                addi r9, r9, {CustomEventLength}
-                stw r9, 0x8(r29) # store current pointing ptr
-                lwz r0, 0x54(sp)
-                addi sp, sp, 0x50
-                mtlr r0
-                blr
+                    cmpwi r21, 0
+                    bne FindActiveHitboxes_Check
 
-            SetBaseDamage:
-                # r0 = flags
-                # r4 = ft/it hit
-                %`rlwinm.`(r0, r0, 0, flag(hfNoStale))
-                beq Return_SetStaling
-                # if no staling == true, set Ft/It hit's damage_f to its base damage
-                lwz r0, 0x8(r4)
-                sth r0, 0x40(sp)
-                psq_l f1, 0x40(sp), 1, 5
-                stfs f1, 0xC(r4)
-                Return_SetStaling:                
+                
+                ParseEventData:
+                    # inputs
+                    # r3 = ExtHit ptr
+                    # r4 = Hit ptr
+                    # load 0.01 to use for multipliying our multipliers
+                    lwz r5, -0x514C(r13) # static vars??
+                    lfs f1, 0xF4(r5) # load 0.01 into f1
+                    # hitlag & SDI multipliers
+                    lhz r5, 0x1(r31)
+                    rlwinm r5, r5, 0, 0xFFF # 0xFFF, load hitlag multiplier
+                    sth r5, 0x24(sp)
+                    lhz r5, 0x3(r31)
+                    rlwinm r5, r5, 28, 0xFFF # load SDI multiplier
+                    sth r5, 0x26(sp)
+                    psq_l f0, 0x24(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
+                    ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
+                    psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+
+                    # read shieldstun multiplier & hitstun modifier
+                    lwz r5, -0x514C(r13)
+                    psq_l f1, 0xF4(r5), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
+                    lhz r5, 0x4(r31)
+                    rlwinm r5, r5, 0, 0xFFF # load shieldstun multiplier
+                    sth r5, 0x24(sp)
+                    lbz r5, 0x6(r31) # read hitstun modifier byte
+                    slwi r5, r5, 24
+                    srawi r5, r5, 24
+                    sth r5, 0x26(sp)
+                    psq_l f0, 0x24(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
+                    ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
+                    psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
+                    # read isSetWeight & Flippy bits & store it
+                    lbz r0, 0x7(r31)
+                    stb r0, {extHitOff(hitFlags)}(r3)
+                    
+                    mr r26, r3 # set ExtHit template
+
+                    ParseEventData_SetNormalHitboxValues:
+                        # r4 = ft/it hit
+                        lbz r0, 0x7(r31)
+                        %`rlwinm.`(r0, r0, 0, flag(hfNoStale))
+                        beq ParseEventData_End
+                        # if no staling == true, set Ft/It hit's damage_f to its base damage
+                        lwz r0, 0x8(r4)
+                        sth r0, 0x40(sp)
+                        psq_l f1, 0x40(sp), 1, 5
+                        stfs f1, 0xC(r4)
+
+                    ParseEventData_End:
+                        cmpwi r21, 0
+                        bne FindActiveHitboxes_Next
+
+                Exit:
+                    # advance script
+                    addi r31, r31, {CustomEventLength}
+                    stw r31, 0x8(r29) # store current pointing ptr
+                    lwz r0, 0x54(sp)
+                    lwz r31, 0x4C(sp)
+                    lwz r26, 0x48(sp)
+                    lwz r25, 0x44(sp)
+                    lwz r24, 0x40(sp)
+                    lwz r23, 0x3C(sp)
+                    lwz r22, 0x38(sp)
+                    lwz r21, 0x34(sp)
+                    addi sp, sp, 0x50
+                    mtlr r0
                     blr
 
             OriginalExit:
