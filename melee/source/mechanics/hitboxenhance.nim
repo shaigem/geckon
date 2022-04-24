@@ -847,6 +847,45 @@ defineCodes:
             fadds f0, f0, f1 # orig hitstun + modifier
             stfs f0, 0x2340(r29) # orig line, store hitstun for player
 
+        # Hitstun patch: slows down flinch animations depending on hitstun
+        # note: only happens if hitstun modifier != 0 and if the flinch animation length is < actual hitstun frames
+        patchInsertAsm "8008e258":
+            # 8000BE40:JOBJ_GetJointAnimFrameTotal(JObj)
+            # for player, 0x28(gobj) for Jobj
+            # 8006F190:SetAnimRate(Gobj, float rate)
+            # -0x7468(rtoc) = 0.1, add to anim rate then divide by actual rate
+            # totalAnimFrame / hitstunFrames
+
+            # r24 = fighter gobj
+            # r29 = fighter data
+
+            lwz r0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load hitstun modifier
+            cmpwi r0, 0
+            beq OriginalExit
+
+            # get total anim frame rate
+            lwz r3, 0x28(r24) # fighter jobj
+            %branchLink("0x8000BE40")
+            lfs f0, -0x7468(rtoc) # 0.1
+            fadds f0, f0, f1 # total anim frames + 0.1
+            lfs f1, 0x2340(r29) # actual hitstun frames
+
+            # check if total animation frames >= actual hitstun frames
+            # if true, exit and don't adjust speed
+            fcmpo cr0, f0, f1
+            cror 2, 1, 2 # >=
+            beq OriginalExit
+
+            fdivs f1, f0, f1 # (total anim frames / actual hitstun frames)
+            # set the anim rate
+            mr r3, r24
+            %branchLink("0x8006F190")
+
+            OriginalExit:
+                mr r3, r24 # original code line
+
+
+
         # Shieldstun multiplier mechanics patch
         patchInsertAsm "8009304c":
             # note: yoshi's shield isn't affected... let's keep his shield unique
