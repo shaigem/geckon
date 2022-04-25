@@ -1139,13 +1139,28 @@ defineCodes:
             lfs f0, -0x7790(rtoc) # 1.0
             fcmpo cr0, f1, f0
             %`bge+`(OriginalExit)
-            # TODO add checks if callbacks are for SDI & ASDI functions?
             # we set the callback ptrs to 0 because it's possible for an attacker who is stuck in hitlag from attacking something
             # to be able to A/S/DI. In vBrawl, attackers hit by a move that does 0 hitlag does not reset their initial freeze frames but allows for only DI
-            li r3, 0
-            stw r3, 0x21D0(r30) # hitlag frame-per-frame cb
-            stw r3, 0x21D8(r30) # hitlag exit cb
-            %branch("0x8006d7e0") # skip set hitlag functions
+            # TODO should we allow for DI only?
+            li r5, 0
+
+            CheckASDIFunction:
+                %load("0x8008e714", r0) # ASDI function
+                lwz r3, 0x21D8(r30) # hitlag exit cb
+                cmplw r3, r0
+                bne CheckSDIFunction
+                stw r5, 0x21D8(r30)
+
+            CheckSDIFunction:
+                %load("0x8008e4f0", r0) # SDI function
+                lwz r3, 0x21D0(r30) # hitlag frame-per-frame cb
+                cmplw r3, r0
+                bne SkipHitlagFunctions
+                stw r5, 0x21D0(r30)
+
+            SkipHitlagFunctions:
+                %branch("0x8006d7e0") # skip set hitlag functions
+
             OriginalExit:
                 stfs f1, 0x195C(r30)
 
@@ -1204,105 +1219,6 @@ defineCodes:
             Exit:
                 lwz r0, 0x30(r28) # original code line
         
-        # COMMENTED OUT BELOW ARE CODES RELATING TO 0% HITLAG AGAINST SHIELDING OPPONENTS
-        # # SHIELD HIT - Character Hitbox - Attacker+Victim
-        # patchInsertAsm "80076d58":
-        #     # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
-        #     # r31 = defender data
-        #     # r30 = hit struct
-        #     # r29 = src data
-        #     # r3 has to be 0 to skip hitlag functions
-        #     mr r0, r3 # backup r3
-
-        #     # get ExtHit
-        #     mr r3, r29 # src data
-        #     mr r4, r30 # hit struct
-        #     li r5, 2324
-        #     li r6, 312
-        #     li r7, {ExtFighterDataOffset}
-        #     %branchLink("0x801510d8")
-        #     cmplwi r3, 0
-        #     beq Exit
-        #     # r3 = ExtHit
-        #     stw r3, 0x10(sp) # save ExtHit to stack for later use in other functions
-
-        #     lwz r3, {extHitOff(hitlagMultiplier)}(r3) # load hitlag mutliplier
-        #     cmpwi r3, 0
-        #     mr r3, r0 # restore r3 here
-        #     bne Exit
-        #     li r3, 0
-
-        #     Exit:
-        #         lwz r0, 0x1924(r29) # orig line
-
-        # # SHIELD HIT - Article Hitbox - Attacker+Victim Hitbox_ProjectileLogicOnShield
-        # patchInsertAsm "80077718":
-        #     # r29 = defender data
-        #     # r28 = hit struct
-        #     # r27 = src data
-        #     # free regs to use f1, f0
-        #     # patch for completely skipping hitlag functions (ASDI, DI & SDI) if hitlag multiplier is 0%
-        #     # r31 has to be 0 to skip hitlag functions
-        #     mr r3, r27 # src data
-        #     mr r4, r28 # hit struct
-        #     li r5, 1492
-        #     li r6, {ItHitSize}
-        #     li r7, {ExtItemDataOffset}
-        #     %branchLink("0x801510d8")
-        #     cmplwi r3, 0
-        #     beq Exit
-        #     # r3 = ExtHit
-        #     stw r3, 0x20(sp) # save ExtHit to stack for later use in other functions
-
-        #     lwz r0, {extHitOff(hitlagMultiplier)}(r3) # load hitlag mutliplier
-        #     cmpwi r0, 0
-        #     bne Exit
-        #     li r31, 0
-
-        #     Exit:
-        #         lwz r0, 0x0C34(r27) # orig line
-
-        # # Hitbox_MeleeLogicOnShield - Set Hit Vars
-        # patchInsertAsm "80076dec":
-        #     # r31 = defender data
-        #     # r30 = hit struct
-        #     # r29 = src data
-        #     # free regs to use: r0, f1, f0
-        #     mr r0, r3 # backup r3
-
-        #     lwz r3, 0x10(sp) # load ExtHit from patch 80076d58
-        #     cmplwi r3, 0
-        #     beq Exit
-
-        #     # r3 = exthit
-        #     lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
-        #     stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r31)
-
-        #     Exit:
-        #         # restore r3
-        #         mr r3, r0
-        #         lwz r0, 0x30(r30) # original code line
-
-        # # Hitbox_ProjectileLogicOnShield - Set Hit Vars
-        # patchInsertAsm "80077918":
-        #     # r29 = defender data
-        #     # r28 = hit struct
-        #     # r27 = src data
-        #     # free regs to use f1, f0
-        #     lwz r3, 0x20(sp) # load ExtHit from stack (patch 80077718)
-        #     %branchLink("0x801510d8")
-        #     cmpwi r3, 0
-        #     beq Exit
-
-        #     # r3 = exthit
-        #     lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
-        #     stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r29)
-
-        #     Exit:
-        #         # restore r6
-        #         mr r6, r30
-        #         stw r0, 0x19B0(r29) # original code line
-
         # ItemThink_Shield/Damage Hitlag Function For Other Entities
         # Patch Hitlag Multiplier
         patchInsertAsm "8026b454":
@@ -1471,12 +1387,6 @@ defineCodes:
             # r30 = item/fighter data
             # r27 = item/fighter gobj
             # r29 = command info
-
-#            cmpwi r9, 1 # type == Advanced
-#            beq ParseBegin
-
-
-
             ParseBegin:
                 # prolog
                 mflr r0
@@ -1503,8 +1413,7 @@ defineCodes:
                 cmplwi r3, 0
                 beq ParseHeader
                 cmplwi r4, 0
-                beq ParseHeader
-                b ParseEventData
+                bne ParseEventData
 
                 ParseHeader:
                     lbz r0, 0x1(r31) # load first byte
@@ -1527,19 +1436,21 @@ defineCodes:
                         cmplwi r26, 0
                         beq ParseEventData
                         
-                        # if there is a template ExtHit, we will memcpy to the next ExtHit
-                        mr r25, r4 # backup r4
-                        # r3 dest ExtHit                        
-                        mr r4, r26 # src ExtHit
-                        li r5, {sizeof(SpecialHit)}
-                        %branchLink("0x800031f4")
-                        # restore r4
-                        mr r4, r25
+                        # if there is a template ExtHit, we will copy vars to the next ExtHit
+                        li r0, {(sizeof(SpecialHit) / sizeof(uint32)).uint32}
+                        mtctr r0
+                        subi r5, r26, 4
+                        subi r6, r3, 4
+                        ExtHitCopy:
+                            lwzu r0, 0x4(r5)
+                            stwu r0, 0x4(r6)
+                            %`bdnz+`(ExtHitCopy)
+
                         b ParseEventData_SetNormalHitboxValues
 
                     FindActiveHitboxes_Next:
                         addi r22, r22, 1
-                        cmplwi r22, 4
+                        cmplwi r22, {OldHitboxCount}
                         add r4, r4, r24 # next Ft/ItHit struct
                         addi r3, r3, {sizeof(SpecialHit)} # next ExtHit struct
                         blt FindActiveHitboxes_Check

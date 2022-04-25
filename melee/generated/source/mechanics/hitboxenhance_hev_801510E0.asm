@@ -21,8 +21,7 @@ li r21, 0
 cmplwi r3, 0
 beq ParseHeader
 cmplwi r4, 0
-beq ParseHeader
-b ParseEventData
+bne ParseEventData
 ParseHeader:
 lbz r0, 0x00000001(r31)
 rlwinm r3, r0, 27, 29, 31
@@ -37,14 +36,14 @@ cmpwi r0, 0
 beq FindActiveHitboxes_Next
 cmplwi r26, 0
 beq ParseEventData
-mr r25, r4
-mr r4, r26
-li r5, 20
-lis r12, 0x800031f4 @h
-ori r12, r12, 0x800031f4 @l
-mtctr r12
-bctrl
-mr r4, r25
+li r0, 5
+mtctr r0
+subi r5, r26, 4
+subi r6, r3, 4
+ExtHitCopy:
+lwzu r0, 0x00000004(r5)
+stwu r0, 0x00000004(r6)
+bdnz+ ExtHitCopy
 b ParseEventData_SetNormalHitboxValues
 FindActiveHitboxes_Next:
 addi r22, r22, 1
