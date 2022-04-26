@@ -1383,7 +1383,6 @@ defineCodes:
             # r6 = Hit struct offset
             # r7 = Hit struct size
             # r8 = New Hit Struct Offset
-            # r9 = hitbox extension type
             # r30 = item/fighter data
             # r27 = item/fighter gobj
             # r29 = command info
@@ -1423,10 +1422,10 @@ defineCodes:
 
                 # find all active hitboxes
                 FindActiveHitboxes:
-                    li r3, 0
+                    li r3, 0 # start at hitbox 0
                     b GetHitStructPtrs
                     FindActiveHitboxes_Check:
-
+                        
                         # skip non-active hitboxes
                         lwz r0, 0(r4)
                         cmpwi r0, 0
@@ -1451,9 +1450,14 @@ defineCodes:
                     FindActiveHitboxes_Next:
                         addi r22, r22, 1
                         cmplwi r22, {OldHitboxCount}
-                        add r4, r4, r24 # next Ft/ItHit struct
-                        addi r3, r3, {sizeof(SpecialHit)} # next ExtHit struct
-                        blt FindActiveHitboxes_Check
+                        bne Advance # != 4, continue
+                        # switch to using the new hit offset (for ids >= 4)
+                        add r4, r4, r23
+                        Advance:
+                            cmplwi r22, {NewHitboxCount}
+                            add r4, r4, r24 # next Ft/ItHit struct
+                            addi r3, r3, {sizeof(SpecialHit)} # next ExtHit struct
+                            blt FindActiveHitboxes_Check
 
                 b Exit
 

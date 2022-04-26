@@ -48,6 +48,10 @@ b ParseEventData_SetNormalHitboxValues
 FindActiveHitboxes_Next:
 addi r22, r22, 1
 cmplwi r22, 4
+bne Advance
+add r4, r4, r23
+Advance:
+cmplwi r22, 8
 add r4, r4, r24
 addi r3, r3, 20
 blt FindActiveHitboxes_Check
