@@ -25,7 +25,8 @@ type
         ffHitByFlinchless,
         ffSetWeight,
         ffDisableMeteorCancel,
-        ffForceHitlagOnThrown
+        ffForceHitlagOnThrown,
+        ffAttackVecPull # 367 autolink
     FighterFlags = set[FighterFlag]
 
     SpecialHit* = object

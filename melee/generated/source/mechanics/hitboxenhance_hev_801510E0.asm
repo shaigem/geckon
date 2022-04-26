@@ -98,8 +98,8 @@ lbz r0, 0x00000007(r31)
 rlwinm. r0, r0, 0, 2
 beq ParseEventData_End
 lwz r0, 0x00000008(r4)
-sth r0, 0x00000040(sp)
-psq_l f1, 0x00000040(sp), 1, 5
+sth r0, 0x00000024(sp)
+psq_l f1, 0x00000024(sp), 1, 5
 stfs f1, 0x0000000C(r4)
 ParseEventData_End:
 cmpwi r21, 0

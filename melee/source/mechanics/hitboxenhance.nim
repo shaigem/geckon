@@ -1475,12 +1475,11 @@ defineCodes:
                     add r3, r3, r26
                     add r3, r30, r3
 
-                    li r26, 0
+                    li r26, 0 # reset r26 since it will be used to store ExtHit template later
 
                     cmpwi r21, 0
                     bne FindActiveHitboxes_Check
 
-                
                 ParseEventData:
                     # inputs
                     # r3 = ExtHit ptr
@@ -1525,8 +1524,8 @@ defineCodes:
                         beq ParseEventData_End
                         # if no staling == true, set Ft/It hit's damage_f to its base damage
                         lwz r0, 0x8(r4)
-                        sth r0, 0x40(sp)
-                        psq_l f1, 0x40(sp), 1, 5
+                        sth r0, 0x24(sp)
+                        psq_l f1, 0x24(sp), 1, 5
                         stfs f1, 0xC(r4)
 
                     ParseEventData_End:
