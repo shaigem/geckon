@@ -845,7 +845,12 @@ defineCodes:
             # f30 = calculated hitstun frames used to determine damage animations, etc.
             lfs f1, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load modifier
             fadds f0, f0, f1 # orig hitstun + modifier
-            stfs f0, 0x2340(r29) # orig line, store hitstun for player
+            lfs f1, -0x7508(rtoc) # 1.0
+            fcmpo cr0, f0, f1
+            bge OrigExit # hitstun >= 1
+            fmr f0, f1 # set default hitstun to 1 frame
+            OrigExit:
+                stfs f0, 0x2340(r29) # orig line, store hitstun for player
 
         # Hitstun patch: slows down flinch animations depending on hitstun
         # note: only happens if hitstun modifier != 0 and if the flinch animation length is < actual hitstun frames
@@ -859,27 +864,42 @@ defineCodes:
             # r24 = fighter gobj
             # r29 = fighter data
 
+            # check if there is a hitstun modifier applied
             lwz r0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r29) # load hitstun modifier
             cmpwi r0, 0
             beq OriginalExit
 
-            # get total anim frame rate
-            lwz r3, 0x28(r24) # fighter jobj
-            %branchLink("0x8000BE40")
-            lfs f0, -0x7468(rtoc) # 0.1
-            fadds f0, f0, f1 # total anim frames + 0.1
-            lfs f1, 0x2340(r29) # actual hitstun frames
+            # if in tumble hitstun, do not change the animation speed
+            lwz r3, -0x514C(r13)
+            lfs f0, 0x160(r3) # 32, tumble hitstun
+            fcmpo cr0, f30, f0 # f30 = unmodified hitstun frames, if >= 32, means in tumble hitstun
+            bge OriginalExit
 
-            # check if total animation frames >= actual hitstun frames
-            # if true, exit and don't adjust speed
-            fcmpo cr0, f0, f1
-            cror 2, 1, 2 # >=
-            beq OriginalExit
+            # fcmpo cr1, f30, f2
+            # fcmpo cr0, f0, f1
+            # cror eq, gt, eq # animLength >= hitstun frames (isAnimLonger)
+            # cror 4*1+eq, 4*1+gt, 4*1+eq # oldHitstunFrames >= 32  (isTumble)
+            # crxor eq, 4*1+eq, eq # exits if (isTumble && !isAnimLonger) || (!isTumble && isAnimLonger)
+            # bt eq, OriginalExit
 
-            fdivs f1, f0, f1 # (total anim frames / actual hitstun frames)
-            # set the anim rate
-            mr r3, r24
-            %branchLink("0x8006F190")
+            # # slows down animation if not in tumble hitstun and hitstun frames is longer than the animation
+
+            SetAnimSpeed:
+                # get total anim frame rate
+                lwz r3, 0x28(r24) # fighter jobj
+                %branchLink("0x8000BE40")
+                lfs f0, -0x7468(rtoc) # 0.1
+                fadds f0, f0, f1 # total anim frames + 0.1
+                lfs f1, 0x2340(r29) # actual hitstun frames
+                # check if total animation frames >= actual hitstun frames
+                # if true, exit and don't adjust speed
+                fcmpo cr0, f0, f1
+                cror 2, 1, 2 # >=
+                beq OriginalExit
+                fdivs f1, f0, f1 # (total anim frames / actual hitstun frames)
+                # set the anim rate
+                mr r3, r24
+                %branchLink("0x8006F190")
 
             OriginalExit:
                 mr r3, r24 # original code line
