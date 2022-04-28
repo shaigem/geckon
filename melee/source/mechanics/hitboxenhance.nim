@@ -869,6 +869,13 @@ defineCodes:
             cmpwi r0, 0
             beq OriginalExit
 
+            # exit if in DownDamageU or DownDamageD
+            lwz r0, 0x10(r29)
+            cmpwi r0, 185 # DownDamageU
+            beq OriginalExit
+            cmpwi r0, 193 # DownDamageD
+            beq OriginalExit
+
             # if in tumble hitstun, do not change the animation speed
             lwz r3, -0x514C(r13)
             lfs f0, 0x160(r3) # 32, tumble hitstun

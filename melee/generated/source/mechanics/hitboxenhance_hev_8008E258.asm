@@ -1,6 +1,11 @@
 lwz r0, 10680(r29)
 cmpwi r0, 0
 beq OriginalExit
+lwz r0, 0x00000010(r29)
+cmpwi r0, 185
+beq OriginalExit
+cmpwi r0, 193
+beq OriginalExit
 lwz r3, 0xFFFFAEB4(r13)
 lfs f0, 0x00000160(r3)
 fcmpo cr0, f30, f0
