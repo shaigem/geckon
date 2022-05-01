@@ -17,14 +17,14 @@ cmplwi r0, 6
 beq GetExtHitForItem
 b Invalid
 GetExtHitForItem:
-addi r5, r3, 3892
+addi r5, r3, 4244
 stw r5, 0x00000010(sp)
 addi r5, r3, 1492
 addi r3, r3, 4048
 li r0, 316
 b GetExtHit
 GetExtHitForFighter:
-addi r5, r3, 9116
+addi r5, r3, 9512
 stw r5, 0x00000010(sp)
 addi r5, r3, 2324
 addi r3, r3, 9248
@@ -33,7 +33,7 @@ GetExtHit:
 b GetExtHit_Comparison
 GetExtHit_Loop:
 add r5, r5, r0
-addi r3, r3, 20
+addi r3, r3, 64
 GetExtHit_Comparison:
 cmplw r5, r4
 bdnzf eq, GetExtHit_Loop

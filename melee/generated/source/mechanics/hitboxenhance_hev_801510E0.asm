@@ -11,6 +11,7 @@ stw r24, 0x00000040(sp)
 stw r23, 0x0000003C(sp)
 stw r22, 0x00000038(sp)
 stw r21, 0x00000034(sp)
+stw r20, 0x00000030(sp)
 lwz r31, 0x00000008(r29)
 mr r26, r5
 mr r25, r6
@@ -18,6 +19,7 @@ mr r24, r7
 mr r23, r8
 li r22, 0
 li r21, 0
+mr r20, r9
 cmplwi r3, 0
 beq ParseHeader
 cmplwi r4, 0
@@ -36,7 +38,7 @@ cmpwi r0, 0
 beq FindActiveHitboxes_Next
 cmplwi r26, 0
 beq ParseEventData
-li r0, 5
+li r0, 16
 mtctr r0
 subi r5, r26, 4
 subi r6, r3, 4
@@ -53,7 +55,7 @@ add r4, r4, r23
 Advance:
 cmplwi r22, 8
 add r4, r4, r24
-addi r3, r3, 20
+addi r3, r3, 64
 blt FindActiveHitboxes_Check
 b Exit
 GetHitStructPtrs:
@@ -64,13 +66,31 @@ add r4, r4, r23
 CalcNormal:
 add r4, r4, r25
 add r4, r30, r4
-mulli r3, r3, 20
+mulli r3, r3, 64
 add r3, r3, r26
 add r3, r30, r3
 li r26, 0
 cmpwi r21, 0
 bne FindActiveHitboxes_Check
 ParseEventData:
+cmpwi r20, 0
+beq ParseEventData_Normal
+ParseEventData_Advanced:
+lfs f1, 0xFFFF88C0(rtoc)
+lhz r0, 0x00000001(r31)
+sth r0, 0x00000024(sp)
+lhz r0, 0x00000003(r31)
+sth r0, 0x00000026(sp)
+psq_l f0, 0x00000024(sp), 0, 5
+ps_mul f0, f1, f0
+psq_st f0, 20(r3), 0, 0
+lhz r0, 0x00000005(r31)
+sth r0, 0x00000024(sp)
+psq_l f0, 0x00000024(sp), 1, 5
+ps_mul f0, f1, f0
+stfs f0, 28(r3)
+b ParseEventData_End
+ParseEventData_Normal:
 lwz r5, 0xFFFFAEB4(r13)
 lfs f1, 0x000000F4(r5)
 lhz r5, 0x00000001(r31)
@@ -109,7 +129,11 @@ ParseEventData_End:
 cmpwi r21, 0
 bne FindActiveHitboxes_Next
 Exit:
+cmpwi r20, 0
 addi r31, r31, 8
+beq Exit_AdvanceScript
+addi r31, r31, 0x0000000C
+Exit_AdvanceScript:
 stw r31, 0x00000008(r29)
 lwz r0, 0x00000054(sp)
 lwz r31, 0x0000004C(sp)
@@ -119,6 +143,7 @@ lwz r24, 0x00000040(sp)
 lwz r23, 0x0000003C(sp)
 lwz r22, 0x00000038(sp)
 lwz r21, 0x00000034(sp)
+lwz r20, 0x00000030(sp)
 addi sp, sp, 0x00000050
 mtlr r0
 blr

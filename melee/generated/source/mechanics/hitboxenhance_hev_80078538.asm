@@ -1,5 +1,5 @@
 lwz r3, 0x0000002C(r3)
-lbz r0, 10688(r3)
+lbz r0, 11084(r3)
 rlwinm. r0, r0, 0, 1
 beq OriginalExit
 blr

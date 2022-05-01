@@ -1,4 +1,4 @@
-mulli r3, r4, 20
+mulli r3, r4, 64
 addi r3, r3, 4048
 add r3, r30, r3
 lis r12, 0x801510e4 @h

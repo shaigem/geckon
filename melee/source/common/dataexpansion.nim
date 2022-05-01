@@ -35,6 +35,10 @@ type
         shieldStunMultiplier*: float32
         hitstunModifier*: float32
         hitFlags*: HitFlags
+        offsetX2*: float32
+        offsetY2*: float32
+        offsetZ2*: float32
+        padding*: array[8, float32] # spots for a few more variables
 
     ExtData* = object
         specialHits*: array[NewHitboxCount, SpecialHit]

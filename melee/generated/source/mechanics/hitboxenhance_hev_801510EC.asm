@@ -5,6 +5,7 @@ stw r0, 0x00000004(sp)
 stwu sp, 0xFFFFFFD0(sp)
 stw r31, 0x0000002C(sp)
 stw r30, 0x00000028(sp)
+stw r29, 0x00000024(sp)
 mr r31, r4
 mr r30, r3
 lis r12, 0x801510d4 @h
@@ -13,9 +14,10 @@ mtctr r12
 bctrl
 cmplwi r3, 0
 beq Exit
-lbz r3, 16(r3)
-rlwinm. r3, r3, 0, 27, 27
+lbz r0, 16(r3)
+rlwinm. r0, r0, 0, 27, 27
 beq Exit
+mr r29, r3
 lhz r0, 0(r30)
 cmplwi r0, 0x00000004
 beq SetForFighter
@@ -32,7 +34,7 @@ li r0, 2
 stw r0, 0(r31)
 GetInitialPos:
 lwz r3, 0x00000048(r31)
-li r4, 0
+addi r4, r29, 20
 addi r5, sp, 0x0000000C
 lis r12, 0x8000B1CC @h
 ori r12, r12, 0x8000B1CC @l
@@ -62,6 +64,7 @@ Exit:
 lwz r0, 0x00000034(sp)
 lwz r31, 0x0000002C(sp)
 lwz r30, 0x00000028(sp)
+lwz r29, 0x00000024(sp)
 addi sp, sp, 0x00000030
 mtlr r0
 blr

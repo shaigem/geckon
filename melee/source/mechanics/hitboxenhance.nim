@@ -345,6 +345,7 @@ defineCodes:
             stwu sp, -0x30(sp)
             stw r31, 0x2C(sp)
             stw r30, 0x28(sp)
+            stw r29, 0x24(sp)
 
             mr r31, r4 # hit struct
             mr r30, r3 # gobj
@@ -354,9 +355,11 @@ defineCodes:
             cmplwi r3, 0
             beq Exit
             # check stretch property
-            lbz r3, {extHitOff(hitFlags)}(r3) # get flags
-            %`rlwinm.`(r3, r3, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            lbz r0, {extHitOff(hitFlags)}(r3) # get flags
+            %`rlwinm.`(r0, r0, 0, 27, 27) # check if Stretch property is set to true (0x10)
             beq Exit
+
+            mr r29, r3 # ExtHit
 
             lhz r0, 0(r30)
             cmplwi r0, 0x4
@@ -378,7 +381,7 @@ defineCodes:
             GetInitialPos:
                 # first, get initial position with offset of 0
                 lwz r3, 0x48(r31) # bone jobj
-                li r4, 0 # offset ptr
+                addi r4, r29, {extHitOff(offsetX2)} # offset ptr
                 addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
             
@@ -405,6 +408,7 @@ defineCodes:
                 lwz r0, 0x34(sp)
                 lwz r31, 0x2C(sp)
                 lwz r30, 0x28(sp)
+                lwz r29, 0x24(sp)
                 addi sp, sp, 0x30
                 mtlr r0
                 blr
@@ -1392,6 +1396,9 @@ defineCodes:
             lfs f0, -0x778C(rtoc) # 0.0
             stfs f0, {extHitOff(hitstunModifier)}(r3)
             li r0, 0
+            stw r0, {extHitOff(offsetX2)}(r3)
+            stw r0, {extHitOff(offsetY2)}(r3)
+            stw r0, {extHitOff(offsetZ2)}(r3)
             stw r0, {extHitOff(hitFlags)}(r3)
             blr
 
@@ -1410,6 +1417,7 @@ defineCodes:
             # r6 = Hit struct offset
             # r7 = Hit struct size
             # r8 = New Hit Struct Offset
+            # r9 = hitboxext type
             # r30 = item/fighter data
             # r27 = item/fighter gobj
             # r29 = command info
@@ -1425,6 +1433,7 @@ defineCodes:
                 stw r23, 0x3C(sp)
                 stw r22, 0x38(sp)
                 stw r21, 0x34(sp)
+                stw r20, 0x30(sp)
 
                 lwz r31, 0x8(r29) # current subaction ptr
                 mr r26, r5
@@ -1433,6 +1442,7 @@ defineCodes:
                 mr r23, r8
                 li r22, 0 # loop counter
                 li r21, 0 # used to check if applying to all active hitboxes or not
+                mr r20, r9
 
                 # if givenExtHitPtr != null && givenExtHitPtr != null
                 # just parse the event data and exit
@@ -1515,49 +1525,76 @@ defineCodes:
                     # inputs
                     # r3 = ExtHit ptr
                     # r4 = Hit ptr
-                    # load 0.01 to use for multipliying our multipliers
-                    lwz r5, -0x514C(r13) # static vars??
-                    lfs f1, 0xF4(r5) # load 0.01 into f1
-                    # hitlag & SDI multipliers
-                    lhz r5, 0x1(r31)
-                    rlwinm r5, r5, 0, 0xFFF # 0xFFF, load hitlag multiplier
-                    sth r5, 0x24(sp)
-                    lhz r5, 0x3(r31)
-                    rlwinm r5, r5, 28, 0xFFF # load SDI multiplier
-                    sth r5, 0x26(sp)
-                    psq_l f0, 0x24(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
-                    ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-                    psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
-                    # read shieldstun multiplier & hitstun modifier
-                    lwz r5, -0x514C(r13)
-                    psq_l f1, 0xF4(r5), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
-                    lhz r5, 0x4(r31)
-                    rlwinm r5, r5, 0, 0xFFF # load shieldstun multiplier
-                    sth r5, 0x24(sp)
-                    lbz r5, 0x6(r31) # read hitstun modifier byte
-                    slwi r5, r5, 24
-                    srawi r5, r5, 24
-                    sth r5, 0x26(sp)
-                    psq_l f0, 0x24(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
-                    ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-                    psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
-                    # read isSetWeight & Flippy bits & store it
-                    lbz r0, 0x7(r31)
-                    stb r0, {extHitOff(hitFlags)}(r3)
-                    
-                    mr r26, r3 # set ExtHit template
+                    cmpwi r20, 0
+                    beq ParseEventData_Normal
 
-                    ParseEventData_SetNormalHitboxValues:
-                        # r4 = ft/it hit
-                        lbz r0, 0x7(r31)
-                        %`rlwinm.`(r0, r0, 0, flag(hfNoStale))
-                        beq ParseEventData_End
-                        # if no staling == true, set Ft/It hit's damage_f to its base damage
-                        lwz r0, 0x8(r4)
+                    ParseEventData_Advanced:
+                        lfs f1, -0x7740(rtoc) # ~1/256
+                        # load and store x2 & y2 offsets
+                        lhz r0, 0x1(r31) # x2 offset
                         sth r0, 0x24(sp)
-                        psq_l f1, 0x24(sp), 1, 5
-                        stfs f1, 0xC(r4)
+
+                        lhz r0, 0x3(r31) # y2 offset
+                        sth r0, 0x26(sp)
+
+                        psq_l f0, 0x24(sp), 0, 5 # load both x2 and y2 offsets into f0
+                        ps_mul f0, f1, f0 # multiply by ~1/256
+                        psq_st f0, {extHitOff(offsetX2)}(r3), 0, 0
+
+                        # load and store z2 offset
+                        lhz r0, 0x5(r31) # z2 offset
+                        sth r0, 0x24(sp)
+                        psq_l f0, 0x24(sp), 1, 5
+                        ps_mul f0, f1, f0 # multiply by ~1/256
+                        stfs f0, {extHitOff(offsetZ2)}(r3)
+                        b ParseEventData_End
+
+                    ParseEventData_Normal:
+
+                        # load 0.01 to use for multipliying our multipliers
+                        lwz r5, -0x514C(r13) # static vars??
+                        lfs f1, 0xF4(r5) # load 0.01 into f1
+                        # hitlag & SDI multipliers
+                        lhz r5, 0x1(r31)
+                        rlwinm r5, r5, 0, 0xFFF # 0xFFF, load hitlag multiplier
+                        sth r5, 0x24(sp)
+                        lhz r5, 0x3(r31)
+                        rlwinm r5, r5, 28, 0xFFF # load SDI multiplier
+                        sth r5, 0x26(sp)
+                        psq_l f0, 0x24(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
+                        ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
+                        psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+
+                        # read shieldstun multiplier & hitstun modifier
+                        lwz r5, -0x514C(r13)
+                        psq_l f1, 0xF4(r5), 1, 7 # load 0.01 in f1(ps0), 1.0 in f1(ps1)
+                        lhz r5, 0x4(r31)
+                        rlwinm r5, r5, 0, 0xFFF # load shieldstun multiplier
+                        sth r5, 0x24(sp)
+                        lbz r5, 0x6(r31) # read hitstun modifier byte
+                        slwi r5, r5, 24
+                        srawi r5, r5, 24
+                        sth r5, 0x26(sp)
+                        psq_l f0, 0x24(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
+                        ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
+                        psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
+                        # read isSetWeight & Flippy bits & store it
+                        lbz r0, 0x7(r31)
+                        stb r0, {extHitOff(hitFlags)}(r3)
+                        
+                        mr r26, r3 # set ExtHit template
+
+                        ParseEventData_SetNormalHitboxValues:
+                            # r4 = ft/it hit
+                            lbz r0, 0x7(r31)
+                            %`rlwinm.`(r0, r0, 0, flag(hfNoStale))
+                            beq ParseEventData_End
+                            # if no staling == true, set Ft/It hit's damage_f to its base damage
+                            lwz r0, 0x8(r4)
+                            sth r0, 0x24(sp)
+                            psq_l f1, 0x24(sp), 1, 5
+                            stfs f1, 0xC(r4)
 
                     ParseEventData_End:
                         cmpwi r21, 0
@@ -1565,8 +1602,12 @@ defineCodes:
 
                 Exit:
                     # advance script
+                    cmpwi r20, 0
                     addi r31, r31, {CustomEventLength}
-                    stw r31, 0x8(r29) # store current pointing ptr
+                    beq Exit_AdvanceScript
+                    addi r31, r31, 0xC
+                    Exit_AdvanceScript:
+                        stw r31, 0x8(r29) # store current pointing ptr
                     lwz r0, 0x54(sp)
                     lwz r31, 0x4C(sp)
                     lwz r26, 0x48(sp)
@@ -1575,6 +1616,7 @@ defineCodes:
                     lwz r23, 0x3C(sp)
                     lwz r22, 0x38(sp)
                     lwz r21, 0x34(sp)
+                    lwz r20, 0x30(sp)
                     addi sp, sp, 0x50
                     mtlr r0
                     blr
