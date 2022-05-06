@@ -76,15 +76,20 @@ ParseEventData:
 cmpwi r20, 0
 beq ParseEventData_Normal
 ParseEventData_Advanced:
+lbz r0, 0x00000001(r31)
+rlwinm r4, r0, 0, 0x00000001
+lbz r0, 16(r3)
+rlwimi r0, r4, 4, 16
+stb r0, 16(r3)
 lfs f1, 0xFFFF88C0(rtoc)
-lhz r0, 0x00000001(r31)
+lhz r0, 0x00000002(r31)
 sth r0, 0x00000024(sp)
-lhz r0, 0x00000003(r31)
+lhz r0, 0x00000004(r31)
 sth r0, 0x00000026(sp)
 psq_l f0, 0x00000024(sp), 0, 5
 ps_mul f0, f1, f0
 psq_st f0, 20(r3), 0, 0
-lhz r0, 0x00000005(r31)
+lhz r0, 0x00000006(r31)
 sth r0, 0x00000024(sp)
 psq_l f0, 0x00000024(sp), 1, 5
 ps_mul f0, f1, f0
@@ -130,11 +135,11 @@ cmpwi r21, 0
 bne FindActiveHitboxes_Next
 Exit:
 cmpwi r20, 0
-addi r31, r31, 8
+addi r3, r31, 8
 beq Exit_AdvanceScript
-addi r31, r31, 0x0000000C
+addi r3, r31, 0x0000000C
 Exit_AdvanceScript:
-stw r31, 0x00000008(r29)
+stw r3, 0x00000008(r29)
 lwz r0, 0x00000054(sp)
 lwz r31, 0x0000004C(sp)
 lwz r26, 0x00000048(sp)

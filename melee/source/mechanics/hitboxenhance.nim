@@ -1530,12 +1530,19 @@ defineCodes:
                     beq ParseEventData_Normal
 
                     ParseEventData_Advanced:
+                        lbz r0, 0x1(r31)
+                        rlwinm r4, r0, 0, 0x1 
+
+                        lbz r0, {extHitOff(hitFlags)}(r3)
+                        rlwimi r0, r4, 4, {flag(hfStretch)}
+                        stb r0, {extHitOff(hitFlags)}(r3)
+
                         lfs f1, -0x7740(rtoc) # ~1/256
                         # load and store x2 & y2 offsets
-                        lhz r0, 0x1(r31) # x2 offset
+                        lhz r0, 0x2(r31) # x2 offset
                         sth r0, 0x24(sp)
 
-                        lhz r0, 0x3(r31) # y2 offset
+                        lhz r0, 0x4(r31) # y2 offset
                         sth r0, 0x26(sp)
 
                         psq_l f0, 0x24(sp), 0, 5 # load both x2 and y2 offsets into f0
@@ -1543,7 +1550,7 @@ defineCodes:
                         psq_st f0, {extHitOff(offsetX2)}(r3), 0, 0
 
                         # load and store z2 offset
-                        lhz r0, 0x5(r31) # z2 offset
+                        lhz r0, 0x6(r31) # z2 offset
                         sth r0, 0x24(sp)
                         psq_l f0, 0x24(sp), 1, 5
                         ps_mul f0, f1, f0 # multiply by ~1/256
@@ -1603,11 +1610,11 @@ defineCodes:
                 Exit:
                     # advance script
                     cmpwi r20, 0
-                    addi r31, r31, {CustomEventLength}
+                    addi r3, r31, {CustomEventLength}
                     beq Exit_AdvanceScript
-                    addi r31, r31, 0xC
+                    addi r3, r31, 0xC
                     Exit_AdvanceScript:
-                        stw r31, 0x8(r29) # store current pointing ptr
+                        stw r3, 0x8(r29) # store current pointing ptr
                     lwz r0, 0x54(sp)
                     lwz r31, 0x4C(sp)
                     lwz r26, 0x48(sp)
