@@ -14,8 +14,8 @@ mtctr r12
 bctrl
 cmplwi r3, 0
 beq Exit
-lbz r0, 16(r3)
-rlwinm. r0, r0, 0, 27, 27
+lbz r0, 32(r3)
+rlwinm. r0, r0, 0, 128
 beq Exit
 mr r29, r3
 lhz r0, 0(r30)

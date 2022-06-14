@@ -38,15 +38,25 @@ cmpwi r0, 0
 beq FindActiveHitboxes_Next
 cmplwi r26, 0
 beq ParseEventData
+cmpwi r20, 0
+beq FindActiveHitboxes_CopyNormal
+FindActiveHitboxes_CopyAdvanced:
+li r0, 4
+addi r5, r26, 16
+addi r6, r3, 16
+b ExtHitCopy_Init
+FindActiveHitboxes_CopyNormal:
 li r0, 16
-mtctr r0
 subi r5, r26, 4
 subi r6, r3, 4
+ExtHitCopy_Init:
+mtctr r0
 ExtHitCopy:
 lwzu r0, 0x00000004(r5)
 stwu r0, 0x00000004(r6)
 bdnz+ ExtHitCopy
-b ParseEventData_SetNormalHitboxValues
+cmpwi r20, 0
+beq ParseEventData_SetNormalHitboxValues
 FindActiveHitboxes_Next:
 addi r22, r22, 1
 cmplwi r22, 4
@@ -73,27 +83,10 @@ li r26, 0
 cmpwi r21, 0
 bne FindActiveHitboxes_Check
 ParseEventData:
+mr r26, r3
 cmpwi r20, 0
 beq ParseEventData_Normal
 ParseEventData_Advanced:
-lbz r0, 0x00000001(r31)
-rlwinm r4, r0, 0, 0x00000001
-lbz r0, 16(r3)
-rlwimi r0, r4, 4, 16
-stb r0, 16(r3)
-lfs f1, 0xFFFF88C0(rtoc)
-lhz r0, 0x00000002(r31)
-sth r0, 0x00000024(sp)
-lhz r0, 0x00000004(r31)
-sth r0, 0x00000026(sp)
-psq_l f0, 0x00000024(sp), 0, 5
-ps_mul f0, f1, f0
-psq_st f0, 20(r3), 0, 0
-lhz r0, 0x00000006(r31)
-sth r0, 0x00000024(sp)
-psq_l f0, 0x00000024(sp), 1, 5
-ps_mul f0, f1, f0
-stfs f0, 28(r3)
 b ParseEventData_End
 ParseEventData_Normal:
 lwz r5, 0xFFFFAEB4(r13)
@@ -121,7 +114,6 @@ ps_mul f0, f1, f0
 psq_st f0, 8(r3), 0, 7
 lbz r0, 0x00000007(r31)
 stb r0, 16(r3)
-mr r26, r3
 ParseEventData_SetNormalHitboxValues:
 lbz r0, 0x00000007(r31)
 rlwinm. r0, r0, 0, 2

@@ -10,6 +10,7 @@ li r0, 0
 stw r0, 20(r3)
 stw r0, 24(r3)
 stw r0, 28(r3)
+stw r0, 32(r3)
 stw r0, 16(r3)
 blr
 OriginalExit:

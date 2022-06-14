@@ -355,8 +355,8 @@ defineCodes:
             cmplwi r3, 0
             beq Exit
             # check stretch property
-            lbz r0, {extHitOff(hitFlags)}(r3) # get flags
-            %`rlwinm.`(r0, r0, 0, 27, 27) # check if Stretch property is set to true (0x10)
+            lbz r0, {extHitAdvOff(hitAdvFlags)}(r3) # get flags
+            %`rlwinm.`(r0, r0, 0, flag(hafStretch)) # check if Stretch property is set to true
             beq Exit
 
             mr r29, r3 # ExtHit
@@ -381,7 +381,7 @@ defineCodes:
             GetInitialPos:
                 # first, get initial position with offset of 0
                 lwz r3, 0x48(r31) # bone jobj
-                addi r4, r29, {extHitOff(offsetX2)} # offset ptr
+                addi r4, r29, {extHitAdvOff(offsetX2)} # offset ptr
                 addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
             
@@ -1396,9 +1396,10 @@ defineCodes:
             lfs f0, -0x778C(rtoc) # 0.0
             stfs f0, {extHitOff(hitstunModifier)}(r3)
             li r0, 0
-            stw r0, {extHitOff(offsetX2)}(r3)
-            stw r0, {extHitOff(offsetY2)}(r3)
-            stw r0, {extHitOff(offsetZ2)}(r3)
+            stw r0, {extHitAdvOff(offsetX2)}(r3)
+            stw r0, {extHitAdvOff(offsetY2)}(r3)
+            stw r0, {extHitAdvOff(offsetZ2)}(r3)
+            stw r0, {extHitAdvOff(hitAdvFlags)}(r3)
             stw r0, {extHitOff(hitFlags)}(r3)
             blr
 
@@ -1473,16 +1474,29 @@ defineCodes:
                         beq ParseEventData
                         
                         # if there is a template ExtHit, we will copy vars to the next ExtHit
-                        li r0, {(sizeof(SpecialHit) / sizeof(uint32)).uint32}
-                        mtctr r0
-                        subi r5, r26, 4
-                        subi r6, r3, 4
-                        ExtHitCopy:
-                            lwzu r0, 0x4(r5)
-                            stwu r0, 0x4(r6)
-                            %`bdnz+`(ExtHitCopy)
+                        cmpwi r20, 0
+                        beq FindActiveHitboxes_CopyNormal
 
-                        b ParseEventData_SetNormalHitboxValues
+                        FindActiveHitboxes_CopyAdvanced:
+                            li r0, {((sizeof(SpecialHitAdvanced) - sizeof(SpecialHitAdvanced.shaPadding)) / sizeof(uint32)).uint32}
+                            addi r5, r26, {extHitOff(advanced) - 4}
+                            addi r6, r3, {extHitOff(advanced) - 4}
+                            b ExtHitCopy_Init
+
+                        FindActiveHitboxes_CopyNormal:
+                            li r0, {(sizeof(SpecialHit) / sizeof(uint32)).uint32}
+                            subi r5, r26, 4
+                            subi r6, r3, 4
+
+                        ExtHitCopy_Init:
+                            mtctr r0
+                            ExtHitCopy:
+                                lwzu r0, 0x4(r5)
+                                stwu r0, 0x4(r6)
+                                %`bdnz+`(ExtHitCopy)
+                                # run any after copy functions
+                                cmpwi r20, 0
+                                beq ParseEventData_SetNormalHitboxValues
 
                     FindActiveHitboxes_Next:
                         addi r22, r22, 1
@@ -1525,36 +1539,12 @@ defineCodes:
                     # inputs
                     # r3 = ExtHit ptr
                     # r4 = Hit ptr
+                    mr r26, r3 # set ExtHit template
 
                     cmpwi r20, 0
                     beq ParseEventData_Normal
 
                     ParseEventData_Advanced:
-                        lbz r0, 0x1(r31)
-                        rlwinm r4, r0, 0, 0x1 
-
-                        lbz r0, {extHitOff(hitFlags)}(r3)
-                        rlwimi r0, r4, 4, {flag(hfStretch)}
-                        stb r0, {extHitOff(hitFlags)}(r3)
-
-                        lfs f1, -0x7740(rtoc) # ~1/256
-                        # load and store x2 & y2 offsets
-                        lhz r0, 0x2(r31) # x2 offset
-                        sth r0, 0x24(sp)
-
-                        lhz r0, 0x4(r31) # y2 offset
-                        sth r0, 0x26(sp)
-
-                        psq_l f0, 0x24(sp), 0, 5 # load both x2 and y2 offsets into f0
-                        ps_mul f0, f1, f0 # multiply by ~1/256
-                        psq_st f0, {extHitOff(offsetX2)}(r3), 0, 0
-
-                        # load and store z2 offset
-                        lhz r0, 0x6(r31) # z2 offset
-                        sth r0, 0x24(sp)
-                        psq_l f0, 0x24(sp), 1, 5
-                        ps_mul f0, f1, f0 # multiply by ~1/256
-                        stfs f0, {extHitOff(offsetZ2)}(r3)
                         b ParseEventData_End
 
                     ParseEventData_Normal:
@@ -1590,8 +1580,6 @@ defineCodes:
                         lbz r0, 0x7(r31)
                         stb r0, {extHitOff(hitFlags)}(r3)
                         
-                        mr r26, r3 # set ExtHit template
-
                         ParseEventData_SetNormalHitboxValues:
                             # r4 = ft/it hit
                             lbz r0, 0x7(r31)
