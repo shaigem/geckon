@@ -94,7 +94,7 @@ defineCodes:
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
-            lbz r3, {extHitOff(hitFlags)}(r3)
+            lbz r3, {extHitNormOff(hitFlags)}(r3)
             %`rlwinm.`(r3, r3, 0, flag(hfNoStale))
             beq Exit
             lwz r5, 0(r26)
@@ -120,7 +120,7 @@ defineCodes:
             %branchLink("0x801510d4") # getExtHit
             cmplwi r3, 0
             beq Exit
-            lbz r3, {extHitOff(hitFlags)}(r3)
+            lbz r3, {extHitNormOff(hitFlags)}(r3)
             %`rlwinm.`(r3, r3, 0, flag(hfNoStale))
             beq Exit
             lwz r5, 0x4(r26)
@@ -355,8 +355,8 @@ defineCodes:
             cmplwi r3, 0
             beq Exit
             # check stretch property
-            lbz r0, {extHitAdvOff(hitAdvFlags)}(r3) # get flags
-            %`rlwinm.`(r0, r0, 0, flag(hafStretch)) # check if Stretch property is set to true
+            lbz r0, {extHitOff(hitStdFlags)}(r3) # get flags
+            %`rlwinm.`(r0, r0, 0, flag(hsfStretch)) # check if Stretch property is set to true
             beq Exit
 
             mr r29, r3 # ExtHit
@@ -381,7 +381,7 @@ defineCodes:
             GetInitialPos:
                 # first, get initial position with offset of 0
                 lwz r3, 0x48(r31) # bone jobj
-                addi r4, r29, {extHitAdvOff(offsetX2)} # offset ptr
+                addi r4, r29, {extHitAtkCapOff(offsetX2)} # offset ptr
                 addi r5, sp, 0xC # result
                 %branchLink("0x8000B1CC") # JObj_GetWorldPos
             
@@ -680,7 +680,7 @@ defineCodes:
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             StoreWindboxFlag:
-                lbz r4, {extHitOff(hitFlags)}(r18)
+                lbz r4, {extHitNormOff(hitFlags)}(r18)
                 %`rlwinm.`(r4, r4, 0, flag(hfFlinchless)) # 0x8 for windbox flag
                 li r3, 0
                 beq WindboxSet
@@ -690,7 +690,7 @@ defineCodes:
                     rlwimi r4, r3, 0, {flag(ffHitByFlinchless)}
                     stb r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
 
-            lbz r4, {extHitOff(hitFlags)}(r18)
+            lbz r4, {extHitNormOff(hitFlags)}(r18)
             %`rlwinm.`(r4, r4, 0, flag(hfSetWeight)) # check 0x80
             beq Exit
 
@@ -717,7 +717,7 @@ defineCodes:
             stw r3, 0x90(sp) # store for later use in the CalculateKnockback function
 
             StoreWindboxFlag:
-                lbz r4, {extHitOff(hitFlags)}(r18)
+                lbz r4, {extHitNormOff(hitFlags)}(r18)
                 %`rlwinm.`(r4, r4, 0, flag(hfFlinchless)) # 0x8 for windbox flag
                 li r3, 0
                 beq WindboxSet
@@ -727,7 +727,7 @@ defineCodes:
                     rlwimi r4, r3, 0, {flag(ffHitByFlinchless)}
                     stb r4, {extFtDataOff(HeaderInfo, fighterFlags)}(r25)
 
-            lbz r4, {extHitOff(hitFlags)}(r18)
+            lbz r4, {extHitNormOff(hitFlags)}(r18)
             %`rlwinm.`(r4, r4, 0, flag(hfSetWeight)) # check 0x80
             beq Exit
 
@@ -1036,13 +1036,13 @@ defineCodes:
                 mr r24, r3 # backup def type
 
             StoreHitlag:
-                lbz r0, {extHitOff(hitFlags)}(r28)
+                lbz r0, {extHitNormOff(hitFlags)}(r28)
                 %`rlwinm.`(r5, r0, 0, flag(hfDisableHitlag))
                 beq StoreHitlagChecks
                 li r5, 1
 
                 StoreHitlagChecks:
-                    lfs f0, {extHitOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
+                    lfs f0, {extHitNormOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
 
                     # store hitlag multi for attacker depending on entity type
                     cmpwi r25, 1
@@ -1088,16 +1088,16 @@ defineCodes:
             bne Epilog # not fighter, skip this section      
 
             StoreHitstunModifier:
-                lfs f0, {extHitOff(hitstunModifier)}(r28)
+                lfs f0, {extHitNormOff(hitstunModifier)}(r28)
                 stfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
                 
             StoreSDIMultiplier:
-                lfs f0, {extHitOff(sdiMultiplier)}(r28)
+                lfs f0, {extHitNormOff(sdiMultiplier)}(r28)
                 stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r30)
             
             CalculateFlippyDirection:
                 # TODO flippy for items such as goombas??
-                lbz r3, {extHitOff(hitFlags)}(r28)
+                lbz r3, {extHitNormOff(hitFlags)}(r28)
                 lfs f0, 0x2C(r31) # facing direction of attacker
                 %`rlwinm.`(r0, r3, 0, 26, 26) # check FlippyTypeForward
                 bne FlippyForward
@@ -1111,7 +1111,7 @@ defineCodes:
 
             SetWeight:
                 # handles the setting and reseting of temp gravity & fall speed
-                lbz r3, {extHitOff(hitFlags)}(r28)
+                lbz r3, {extHitNormOff(hitFlags)}(r28)
                 %`rlwinm.`(r3, r3, 0, flag(hfSetWeight))
                 beq ResetTempGravityFallSpeed # hit isn't set weight, check to reset vars
 
@@ -1143,7 +1143,7 @@ defineCodes:
                     %branchLink(CustomFuncResetGravityAndFallSpeed)
     
             StoreDisableMeteorCancel:
-                lbz r3, {extHitOff(hitFlags)}(r28)
+                lbz r3, {extHitNormOff(hitFlags)}(r28)
                 %`rlwinm.`(r0, r3, 0, flag(hfNoMeteorCancel))
                 li r3, 0
                 beq MeteorCancelSet
@@ -1246,7 +1246,7 @@ defineCodes:
             beq Exit
 
             # r3 = exthit
-            lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+            lfs f0, {extHitNormOff(shieldstunMultiplier)}(r3)
             stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r31)
 
             Exit:
@@ -1267,7 +1267,7 @@ defineCodes:
             beq Exit
 
             # r3 = exthit
-            lfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+            lfs f0, {extHitNormOff(shieldstunMultiplier)}(r3)
             stfs f0, {extFtDataOff(HeaderInfo, shieldstunMultiplier)}(r29)
 
             Exit:
@@ -1342,7 +1342,7 @@ defineCodes:
             # r3 still contains ExtHit
             # r0 contains 0
             # default hitlag multiplier for all throws is 0x
-            stw r0, {extHitOff(hitlagMultiplier)}(r3)
+            stw r0, {extHitNormOff(hitlagMultiplier)}(r3)
 
             Exit:
                 addi r3, r31, 0 # orig code line
@@ -1416,19 +1416,19 @@ defineCodes:
 
             # reset vars that need to be 1
             lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {extHitOff(hitlagMultiplier)}(r3)
-            stfs f0, {extHitOff(sdiMultiplier)}(r3)
-            stfs f0, {extHitOff(shieldstunMultiplier)}(r3)
+            stfs f0, {extHitNormOff(hitlagMultiplier)}(r3)
+            stfs f0, {extHitNormOff(sdiMultiplier)}(r3)
+            stfs f0, {extHitNormOff(shieldstunMultiplier)}(r3)
 
             # reset vars that need to be 0
             lfs f0, -0x778C(rtoc) # 0.0
-            stfs f0, {extHitOff(hitstunModifier)}(r3)
+            stfs f0, {extHitNormOff(hitstunModifier)}(r3)
             li r0, 0
-            stw r0, {extHitAdvOff(offsetX2)}(r3)
-            stw r0, {extHitAdvOff(offsetY2)}(r3)
-            stw r0, {extHitAdvOff(offsetZ2)}(r3)
-            stw r0, {extHitAdvOff(hitAdvFlags)}(r3)
-            stw r0, {extHitOff(hitFlags)}(r3)
+            stw r0, {extHitAtkCapOff(offsetX2)}(r3)
+            stw r0, {extHitAtkCapOff(offsetY2)}(r3)
+            stw r0, {extHitAtkCapOff(offsetZ2)}(r3)
+            stw r0, {extHitOff(hitStdFlags)}(r3)
+            stw r0, {extHitNormOff(hitFlags)}(r3)
             blr
 
             OriginalExit:
@@ -1506,13 +1506,14 @@ defineCodes:
                         beq FindActiveHitboxes_CopyNormal
 
                         FindActiveHitboxes_CopyAdvanced:
-                            li r0, {((sizeof(SpecialHitAdvanced) - sizeof(SpecialHitAdvanced.shaPadding)) / sizeof(uint32)).uint32}
-                            addi r5, r26, {extHitOff(advanced) - 4}
-                            addi r6, r3, {extHitOff(advanced) - 4}
-                            b ExtHitCopy_Init
+                            nop
+                            #li r0, {((sizeof(SpecialHitAdvanced) - sizeof(SpecialHitAdvanced.shaPadding)) / sizeof(uint32)).uint32}
+                            #addi r5, r26, {extHitNormOff(advanced) - 4}
+                            #addi r6, r3, {extHitNormOff(advanced) - 4}
+                            #b ExtHitCopy_Init
 
                         FindActiveHitboxes_CopyNormal:
-                            li r0, {(sizeof(SpecialHit) / sizeof(uint32)).uint32}
+                            li r0, {(sizeof(SpecialHitNormal) / sizeof(uint32)).uint32}
                             subi r5, r26, 4
                             subi r6, r3, 4
 
@@ -1589,7 +1590,7 @@ defineCodes:
                         sth r5, 0x26(sp)
                         psq_l f0, 0x24(sp), 0, 5 # load both hitlag & sdi multipliers into f0 (ps0 = hitlag multi, ps1 = sdi multi)
                         ps_mul f0, f1, f0 # multiply both hitlag & sdi multipliers by f1 = 0.01
-                        psq_st f0, {extHitOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
+                        psq_st f0, {extHitNormOff(hitlagMultiplier)}(r3), 0, 7 # store calculated hitlag & sdi multipliers next to each other
 
                         # read shieldstun multiplier & hitstun modifier
                         lwz r5, -0x514C(r13)
@@ -1603,16 +1604,16 @@ defineCodes:
                         sth r5, 0x26(sp)
                         psq_l f0, 0x24(sp), 0, 5 # load shieldstun multi in f0(ps0), hitstun mod in f0(ps1) ]#
                         ps_mul f0, f1, f0 # shieldstun multi * 0.01, hitstun mod * 1.00
-                        psq_st f0, {extHitOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
+                        psq_st f0, {extHitNormOff(shieldstunMultiplier)}(r3), 0, 7 # store results next to each other
                         # read isSetWeight & Flippy bits & store it
                         lbz r0, 0x7(r31)
-                        stb r0, {extHitOff(hitFlags)}(r3)
+                        stb r0, {extHitNormOff(hitFlags)}(r3)
                         %`rlwinm.`(r0, r0, 0, flag(hfDisableHitlag))
                         beq ParseEventData_SetNormalHitboxValues
 
                         # if DisableHitlag flag is true, set the hitlag multiplier to 0
                         li r0, 0
-                        stw r0, {extHitOff(hitlagMultiplier)}(r3)
+                        stw r0, {extHitNormOff(hitlagMultiplier)}(r3)
  
                         ParseEventData_SetNormalHitboxValues:
                             # r4 = ft/it hit

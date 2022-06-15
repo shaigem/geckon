@@ -21,16 +21,16 @@ type
         hfSetWeight
     HitFlags = set[HitFlag]
 
-    HitAdvFlag* {.size: sizeof(uint32).} = enum
-        hafUnk1,
-        hafUnk2,
-        hafUnk3,
-        hafUnk4,
-        hafUnk5,
-        hafUnk6,
-        hafUnk7,
-        hafStretch
-    HitAdvFlags = set[HitAdvFlag]
+    HitStdFlag* {.size: sizeof(uint32).} = enum
+        hsfUnk1,
+        hsfUnk2,
+        hsfUnk3,
+        hsfUnk4,
+        hsfUnk5,
+        hsfUnk6,
+        hsfUnk7,
+        hsfStretch
+    HitStdFlags = set[HitStdFlag]
 
     FighterFlag* {.size: sizeof(uint32).} = enum
         ffHitByFlinchless,
@@ -42,19 +42,26 @@ type
     FighterFlags = set[FighterFlag]
 
     SpecialHitAdvanced* = object
-        offsetX2*: float32
-        offsetY2*: float32
-        offsetZ2*: float32
-        hitAdvFlags*: HitAdvFlags
-        shaPadding*: array[7, float32] # spots for a few more variables
-
-    SpecialHit* = object
+        padding*: array[4, float32] # spots for a few more variables
+        
+    SpecialHitNormal* = object
         hitlagMultiplier*: float32
         sdiMultiplier*: float32
         shieldStunMultiplier*: float32
         hitstunModifier*: float32
         hitFlags*: HitFlags
-        advanced*: SpecialHitAdvanced
+
+    SpecialHitAttackCapsule* = object
+        offsetX2*: float32
+        offsetY2*: float32
+        offsetZ2*: float32
+
+    SpecialHit* = object
+        hitNormal*: SpecialHitNormal
+        hitCapsule*: SpecialHitAttackCapsule
+        hitAdvanced*: SpecialHitAdvanced
+        hitStdFlags*: HitStdFlags
+        padding*: array[7, float32] # spots for a few more variables
 
     ExtData* = object
         specialHits*: array[NewHitboxCount, SpecialHit]
@@ -76,14 +83,15 @@ type
 template extFtDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.fighterDataSize + offsetOf(ExtFighterData, member)
 template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInfo.itemDataSize + offsetOf(ExtItemData, member)
 template extHitOff*(member: untyped): int = offsetOf(SpecialHit, member)
-template extHitAdvOff*(member: untyped): int = extHitOff(advanced) + offsetOf(SpecialHitAdvanced, member)
+template extHitNormOff*(member: untyped): int = extHitOff(hitNormal) + offsetOf(SpecialHitNormal, member)
+template extHitAtkCapOff*(member: untyped): int = extHitOff(hitCapsule) + offsetOf(SpecialHitAttackCapsule, member)
 
 proc initGameHeaderInfo(name: string; fighterDataSize, itemDataSize: int): GameHeaderInfo =
     result.name = name
     result.fighterDataSize = fighterDataSize
     result.itemDataSize = itemDataSize
 
-proc flag*(f: HitFlag|FighterFlag|HitAdvFlag): int = 1 shl f.ord
+proc flag*(f: HitFlag|FighterFlag|HitStdFlag): int = 1 shl f.ord
 
 const
     VanillaHeaderInfo* = initGameHeaderInfo("Vanilla", fighterDataSize = 0x23EC, itemDataSize = 0xFCC)
@@ -92,4 +100,4 @@ const
         VanillaHeaderInfo.fighterDataSize + 52, 
             itemDataSize = VanillaHeaderInfo.itemDataSize + 4)
 
-echo sizeof(SpecialHitAdvanced.shaPadding)
+echo (sizeof(SpecialHitAdvanced) / sizeof(uint32)).uint32

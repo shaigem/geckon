@@ -41,12 +41,9 @@ beq ParseEventData
 cmpwi r20, 0
 beq FindActiveHitboxes_CopyNormal
 FindActiveHitboxes_CopyAdvanced:
-li r0, 4
-addi r5, r26, 16
-addi r6, r3, 16
-b ExtHitCopy_Init
+nop
 FindActiveHitboxes_CopyNormal:
-li r0, 16
+li r0, 5
 subi r5, r26, 4
 subi r6, r3, 4
 ExtHitCopy_Init:
@@ -65,7 +62,7 @@ add r4, r4, r23
 Advance:
 cmplwi r22, 8
 add r4, r4, r24
-addi r3, r3, 64
+addi r3, r3, 80
 blt FindActiveHitboxes_Check
 b Exit
 GetHitStructPtrs:
@@ -76,7 +73,7 @@ add r4, r4, r23
 CalcNormal:
 add r4, r4, r25
 add r4, r30, r4
-mulli r3, r3, 64
+mulli r3, r3, 80
 add r3, r3, r26
 add r3, r30, r3
 li r26, 0
