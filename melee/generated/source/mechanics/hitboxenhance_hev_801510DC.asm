@@ -36,17 +36,28 @@ cmplwi r3, 0
 beq Epilog
 mr r24, r3
 StoreHitlag:
+lbz r0, 16(r28)
+rlwinm. r5, r0, 0, 16
+beq StoreHitlagChecks
+li r5, 1
+StoreHitlagChecks:
 lfs f0, 0(r28)
 cmpwi r25, 1
 addi r3, r31, 5824
 bne StoreHitlagMultiForAttacker
 addi r3, r31, 0x00001960
+lbz r0, 11084(r31)
+rlwimi r0, r5, 5, 32
+stb r0, 11084(r31)
 StoreHitlagMultiForAttacker:
 stfs f0, 0(r3)
 cmpwi r24, 1
 addi r3, r30, 5824
 bne ElectricHitlagCalculate
 addi r3, r30, 0x00001960
+lbz r0, 11084(r30)
+rlwimi r0, r5, 5, 32
+stb r0, 11084(r30)
 ElectricHitlagCalculate:
 lwz r0, 0x00000030(r29)
 cmplwi r0, 2

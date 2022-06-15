@@ -15,7 +15,7 @@ type
         hfNoStale,
         hfNoMeteorCancel,
         hfFlinchless,
-        hfUnk,
+        hfDisableHitlag,
         hfAngleFlipCurrent,
         hfAngleFlipOpposite,
         hfSetWeight
@@ -38,6 +38,7 @@ type
         ffDisableMeteorCancel,
         ffForceHitlagOnThrown,
         ffAttackVecPull # 367 autolink
+        ffDisableHitlag
     FighterFlags = set[FighterFlag]
 
     SpecialHitAdvanced* = object

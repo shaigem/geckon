@@ -1036,36 +1036,52 @@ defineCodes:
                 mr r24, r3 # backup def type
 
             StoreHitlag:
-                lfs f0, {extHitOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
+                lbz r0, {extHitOff(hitFlags)}(r28)
+                %`rlwinm.`(r5, r0, 0, flag(hfDisableHitlag))
+                beq StoreHitlagChecks
+                li r5, 1
 
-                # store hitlag multi for attacker depending on entity type
-                cmpwi r25, 1
-                addi r3, r31, {extItDataOff(HeaderInfo, hitlagMultiplier)}
-                bne StoreHitlagMultiForAttacker
-                addi r3, r31, 0x1960
-                
-                StoreHitlagMultiForAttacker:
-                    stfs f0, 0(r3)
+                StoreHitlagChecks:
+                    lfs f0, {extHitOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
 
-                # store hitlag multi for defender depending on entity type                
-                cmpwi r24, 1
-                addi r3, r30, {extItDataOff(HeaderInfo, hitlagMultiplier)}
-                bne ElectricHitlagCalculate
-                addi r3, r30, 0x1960
+                    # store hitlag multi for attacker depending on entity type
+                    cmpwi r25, 1
+                    addi r3, r31, {extItDataOff(HeaderInfo, hitlagMultiplier)}
+                    bne StoreHitlagMultiForAttacker
+                    addi r3, r31, 0x1960
+                    
+                    # store DisableHitlag flag for attacker (fighter)
+                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+                    rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
+                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
 
-                # defenders can experience 1.5x more hitlag if hit by an electric attack
-                ElectricHitlagCalculate:
-                    lwz r0, 0x30(r29) # dmg hit attribute
-                    cmplwi r0, 2 # electric
-                    %`bne+`(StoreHitlagMultiForDefender) # not electric, just store the orig multiplier
-                    # Electric
-                    lwz r4, -0x514C(r13) # PlCo values
-                    lfs f1, 0x1A4(r4) # 1.5 electric hitlag multiplier
-                    fmuls f0, f1, f0 # 1.5 * multiplier
-                    # store extra hitlag for DEFENDER ONLY in Melee
+                    StoreHitlagMultiForAttacker:
+                        stfs f0, 0(r3)
 
-                StoreHitlagMultiForDefender:
-                    stfs f0, 0(r3)
+                    # store hitlag multi for defender depending on entity type                
+                    cmpwi r24, 1
+                    addi r3, r30, {extItDataOff(HeaderInfo, hitlagMultiplier)}
+                    bne ElectricHitlagCalculate
+                    addi r3, r30, 0x1960
+
+                    # store DisableHitlag flag for defender (fighter)
+                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+                    rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
+                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+
+                    # defenders can experience 1.5x more hitlag if hit by an electric attack
+                    ElectricHitlagCalculate:
+                        lwz r0, 0x30(r29) # dmg hit attribute
+                        cmplwi r0, 2 # electric
+                        %`bne+`(StoreHitlagMultiForDefender) # not electric, just store the orig multiplier
+                        # Electric
+                        lwz r4, -0x514C(r13) # PlCo values
+                        lfs f1, 0x1A4(r4) # 1.5 electric hitlag multiplier
+                        fmuls f0, f1, f0 # 1.5 * multiplier
+                        # store extra hitlag for DEFENDER ONLY in Melee
+
+                    StoreHitlagMultiForDefender:
+                        stfs f0, 0(r3)
 
             # now we store other variables for defenders who are fighters ONLY
             cmpwi r24, 1 # fighter
@@ -1165,11 +1181,11 @@ defineCodes:
                 lwz r5, 0x010C(r31)
 
         # Patch PlayerThink_Shield/Damage Calculate Hitlag
-        # If calculated hitlag is < 1.0, skip going into hitlag which disables A/S/DI
+        # If DisableHitlag flag is true, skip going into hitlag which disables A/S/DI
         patchInsertAsm "8006d708":
-            lfs f0, -0x7790(rtoc) # 1.0
-            fcmpo cr0, f1, f0
-            %`bge+`(OriginalExit)
+            lbz r3, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            %`rlwinm.`(r3, r3, 0, flag(ffDisableHitlag))
+            beq CheckHitlagFrames
             # we set the callback ptrs to 0 because it's possible for an attacker who is stuck in hitlag from attacking something
             # to be able to A/S/DI. In vBrawl, attackers hit by a move that does 0 hitlag does not reset their initial freeze frames but allows for only DI
             # TODO should we allow for DI only?
@@ -1191,6 +1207,13 @@ defineCodes:
 
             SkipHitlagFunctions:
                 %branch("0x8006d7e0") # skip set hitlag functions
+
+            CheckHitlagFrames:
+                lfs f0, -0x7790(rtoc) # 1.0
+                fcmpo cr0, f1, f0
+                cror 2, 1, 2
+                beq OriginalExit # frames >= 1.0, just exit
+                fmr f1, f0
 
             OriginalExit:
                 stfs f1, 0x195C(r30)
@@ -1368,6 +1391,11 @@ defineCodes:
             rlwimi r0, r3, 3, {flag(ffForceHitlagOnThrown)}
             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
+            # reset disable hitlag flag to 0
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            rlwimi r0, r3, 5, {flag(ffDisableHitlag)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+            
             # reset hitstun modifier to 0
             stfs f1, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
 
@@ -1579,7 +1607,13 @@ defineCodes:
                         # read isSetWeight & Flippy bits & store it
                         lbz r0, 0x7(r31)
                         stb r0, {extHitOff(hitFlags)}(r3)
-                        
+                        %`rlwinm.`(r0, r0, 0, flag(hfDisableHitlag))
+                        beq ParseEventData_SetNormalHitboxValues
+
+                        # if DisableHitlag flag is true, set the hitlag multiplier to 0
+                        li r0, 0
+                        stw r0, {extHitOff(hitlagMultiplier)}(r3)
+ 
                         ParseEventData_SetNormalHitboxValues:
                             # r4 = ft/it hit
                             lbz r0, 0x7(r31)

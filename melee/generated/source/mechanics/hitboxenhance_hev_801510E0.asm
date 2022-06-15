@@ -114,6 +114,10 @@ ps_mul f0, f1, f0
 psq_st f0, 8(r3), 0, 7
 lbz r0, 0x00000007(r31)
 stb r0, 16(r3)
+rlwinm. r0, r0, 0, 16
+beq ParseEventData_SetNormalHitboxValues
+li r0, 0
+stw r0, 0(r3)
 ParseEventData_SetNormalHitboxValues:
 lbz r0, 0x00000007(r31)
 rlwinm. r0, r0, 0, 2
