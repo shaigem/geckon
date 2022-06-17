@@ -21,6 +21,17 @@ type
         hfSetWeight
     HitFlags = set[HitFlag]
 
+    HitAdvFlag* {.size: sizeof(uint32).} = enum
+        hafUnk1,
+        hafUnk2,
+        hafUnk3,
+        hafUnk4,
+        hafUnk5,
+        hafUnk6,
+        hafUnk7,
+        hafNoHitstunCancel
+    HitAdvFlags = set[HitAdvFlag]
+
     HitStdFlag* {.size: sizeof(uint32).} = enum
         hsfUnk1,
         hsfUnk2,
@@ -39,11 +50,13 @@ type
         ffForceHitlagOnThrown,
         ffAttackVecPull # 367 autolink
         ffDisableHitlag
+        ffNoHitstunCancel
     FighterFlags = set[FighterFlag]
 
     SpecialHitAdvanced* = object
-        padding*: array[4, float32] # spots for a few more variables
-        
+        padding*: array[3, float32] # spots for a few more variables
+        hitAdvFlags*: HitAdvFlags
+
     SpecialHitNormal* = object
         hitlagMultiplier*: float32
         sdiMultiplier*: float32
@@ -85,13 +98,14 @@ template extItDataOff*(gameInfo: GameHeaderInfo; member: untyped): int = gameInf
 template extHitOff*(member: untyped): int = offsetOf(SpecialHit, member)
 template extHitNormOff*(member: untyped): int = extHitOff(hitNormal) + offsetOf(SpecialHitNormal, member)
 template extHitAtkCapOff*(member: untyped): int = extHitOff(hitCapsule) + offsetOf(SpecialHitAttackCapsule, member)
+template extHitAdvOff*(member: untyped): int = extHitOff(hitAdvanced) + offsetOf(SpecialHitAdvanced, member)
 
 proc initGameHeaderInfo(name: string; fighterDataSize, itemDataSize: int): GameHeaderInfo =
     result.name = name
     result.fighterDataSize = fighterDataSize
     result.itemDataSize = itemDataSize
 
-proc flag*(f: HitFlag|FighterFlag|HitStdFlag): int = 1 shl f.ord
+proc flag*(f: HitFlag|FighterFlag|HitStdFlag|HitAdvFlag): int = 1 shl f.ord
 
 const
     VanillaHeaderInfo* = initGameHeaderInfo("Vanilla", fighterDataSize = 0x23EC, itemDataSize = 0xFCC)

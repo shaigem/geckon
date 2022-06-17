@@ -916,6 +916,68 @@ defineCodes:
                 mr r3, r24 # original code line
 
 
+        patchInsertAsm "8008fc68":
+            # enters landing lag, frames 0-3, 4th frame is when actionable
+            # 800d5dac?
+            # r30 = gobj
+            # r31 = fighter data
+
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            %`rlwinm.`(r0, r0, 0, flag(ffNoHitstunCancel))
+            beq OriginalExit
+
+            # li r3, 0
+            # lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            # rlwimi r0, r3, 6, {flag(ffNoHitstunCancel)}
+            # stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31) TODO should reset as safety?
+
+            %branch("0x8008fc74")
+
+            OriginalExit:
+                mr r3, r30 # orig line
+    
+        # patchInsertAsm "800d5da0":
+        #     # r30 = fighter data
+        #     lfs f0, 0x1F4(r30) # orig line, interrupt frames (4)
+        #     lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #     %`rlwinm.`(r0, r0, 0, flag(ffNoHitstunCancel))
+        #     beq OriginalExit
+        #     lfs f0, 0x2344(r30)
+        #     OriginalExit:
+        #         %emptyBlock
+
+
+        # patchInsertAsm "800d5b48":
+        #     # r31 = fighter data
+        #     stw r29, 0x2340(r31)
+
+        #     lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+        #     %`rlwinm.`(r0, r0, 0, flag(ffNoHitstunCancel))
+        #     beq Exit
+
+        #     # if hitstun frames > landing lag animation len, then slowdown animation
+        #     lwz r3, 0x28(r27) # fighter jobj
+        #     %branchLink("0x8000BE40") # total anim rate
+        #     lfs f0, -0x7468(rtoc) # 0.1
+        #     fadds f0, f0, f1 # total anim frames + 0.1
+        #     lfs f1, 0x2344(r31)
+
+        #     # check if total animation frames >= actual hitstun frames
+        #     # if true, exit and don't adjust speed
+        #     fcmpo cr0, f0, f1
+        #     cror 2, 1, 2 # >=
+        #     beq Exit
+        #     fdivs f1, f0, f1 # (total anim frames / actual hitstun frames)
+        #     # set the anim rate
+        #     mr r3, r27
+        #     %branchLink("0x8006F190")
+
+        #     li r0, 0
+        #     stw r0, 0x2340(r31)
+
+        #     Exit:
+        #         %emptyBlock
+
 
         # Shieldstun multiplier mechanics patch
         patchInsertAsm "8009304c":
@@ -1153,6 +1215,17 @@ defineCodes:
                     rlwimi r0, r3, 2, {flag(ffDisableMeteorCancel)}
                     stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
+            StoreNoHitstunLandCancel:
+                lbz r3, {extHitAdvOff(hitAdvFlags)}(r28)
+                %`rlwinm.`(r0, r3, 0, flag(hafNoHitstunCancel))
+                li r3, 0
+                beq HitstunLandCancelSet
+                li r3, 1
+                HitstunLandCancelSet:
+                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+                    rlwimi r0, r3, 6, {flag(ffNoHitstunCancel)}
+                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+
             Epilog:
                 %restore
                 EpilogReturn:
@@ -1368,6 +1441,26 @@ defineCodes:
             Exit:
                 %emptyBlock
 
+        # Reset Custom ExtFighterData vars upon hitstun exit (after 1 frame?)
+        patchInsertAsm "8006ab3c":
+            # r31 = fighter data
+            lhz r0, 0x2098(r31)
+            cmplwi r0, 0
+            beq Exit
+
+            lbz r0, 0x221C(r31)
+            %`rlwinm.`(r0, r0, 31, 31, 31)
+            bne Exit
+
+            li r3, 0
+            lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+            rlwimi r0, r3, 6, {flag(ffNoHitstunCancel)}
+            stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+
+            Exit:
+                lbz r0, 0x221C(r31) # orig code line
+
+
         # Reset Custom ExtFighterData vars that are involved with PlayerThink_Shield/Damage
         patchInsertAsm "8006d8fc":
             # reset custom ExtData vars for fighter
@@ -1427,6 +1520,7 @@ defineCodes:
             stw r0, {extHitAtkCapOff(offsetX2)}(r3)
             stw r0, {extHitAtkCapOff(offsetY2)}(r3)
             stw r0, {extHitAtkCapOff(offsetZ2)}(r3)
+            stw r0, {extHitAdvOff(hitAdvFlags)}(r3)
             stw r0, {extHitOff(hitStdFlags)}(r3)
             stw r0, {extHitNormOff(hitFlags)}(r3)
             blr
@@ -1574,6 +1668,8 @@ defineCodes:
                     beq ParseEventData_Normal
 
                     ParseEventData_Advanced:
+                        lbz r0, 0x7(r31)
+                        stb r0, {extHitAdvOff(hitAdvFlags)}(r3)
                         b ParseEventData_End
 
                     ParseEventData_Normal:
@@ -1635,7 +1731,7 @@ defineCodes:
                     cmpwi r20, 0
                     addi r3, r31, {CustomEventLength}
                     beq Exit_AdvanceScript
-                    addi r3, r31, 0xC
+                    addi r3, r31, 0x8
                     Exit_AdvanceScript:
                         stw r3, 0x8(r29) # store current pointing ptr
                     lwz r0, 0x54(sp)

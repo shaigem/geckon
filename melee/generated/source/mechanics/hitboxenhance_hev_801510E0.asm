@@ -84,6 +84,8 @@ mr r26, r3
 cmpwi r20, 0
 beq ParseEventData_Normal
 ParseEventData_Advanced:
+lbz r0, 0x00000007(r31)
+stb r0, 44(r3)
 b ParseEventData_End
 ParseEventData_Normal:
 lwz r5, 0xFFFFAEB4(r13)
@@ -130,7 +132,7 @@ Exit:
 cmpwi r20, 0
 addi r3, r31, 8
 beq Exit_AdvanceScript
-addi r3, r31, 0x0000000C
+addi r3, r31, 0x00000008
 Exit_AdvanceScript:
 stw r3, 0x00000008(r29)
 lwz r0, 0x00000054(sp)

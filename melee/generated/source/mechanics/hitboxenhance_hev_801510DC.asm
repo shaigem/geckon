@@ -123,6 +123,16 @@ MeteorCancelSet:
 lbz r0, 11228(r30)
 rlwimi r0, r3, 2, 4
 stb r0, 11228(r30)
+StoreNoHitstunLandCancel:
+lbz r3, 44(r28)
+rlwinm. r0, r3, 0, 128
+li r3, 0
+beq HitstunLandCancelSet
+li r3, 1
+HitstunLandCancelSet:
+lbz r0, 11228(r30)
+rlwimi r0, r3, 6, 64
+stb r0, 11228(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
