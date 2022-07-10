@@ -1035,223 +1035,223 @@ defineCodes:
             Exit:
                 lbz r0, 0x2226(r27) # orig code line
 
-        # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
-        patchInsertAsm "801510dc":
-            cmpwi r4, 343
-            %`beq-`(OriginalExit)
+        # # Custom Non-Standalone Function For Handling Setting the Appropriate Hitlag & Hitstun & SDI Multipliers
+        # patchInsertAsm "801510dc":
+        #     cmpwi r4, 343
+        #     %`beq-`(OriginalExit)
 
-            # both items and fighters can experience hitlag
-            # only defender fighter experience SDI & Hitstun mods
+        #     # both items and fighters can experience hitlag
+        #     # only defender fighter experience SDI & Hitstun mods
 
-            # inputs
-            # r3 = source gobj
-            # r4 = defender gobj
-            # r5 = source hit ft/it hit struct ptr
-            # r6 = optional calculated ExtHit
-            # source cannot be a null ptr
-            cmplwi r3, 0
-            beq EpilogReturn
+        #     # inputs
+        #     # r3 = source gobj
+        #     # r4 = defender gobj
+        #     # r5 = source hit ft/it hit struct ptr
+        #     # r6 = optional calculated ExtHit
+        #     # source cannot be a null ptr
+        #     cmplwi r3, 0
+        #     beq EpilogReturn
 
-            %backup
-            # backup regs
-            # r31 = source data
-            # r30 = defender data
-            # r29 = r5 ft/it hit
-            # r28 = ExtHit offset
-            # r27 = r3 source gobj
-            # r26 = r4 defender gobj
+        #     %backup
+        #     # backup regs
+        #     # r31 = source data
+        #     # r30 = defender data
+        #     # r29 = r5 ft/it hit
+        #     # r28 = ExtHit offset
+        #     # r27 = r3 source gobj
+        #     # r26 = r4 defender gobj
 
-            lwz r31, 0x2C(r3)
-            lwz r30, 0x2C(r4)
-            mr r29, r5
-            mr r27, r3
-            mr r26, r4
+        #     lwz r31, 0x2C(r3)
+        #     lwz r30, 0x2C(r4)
+        #     mr r29, r5
+        #     mr r27, r3
+        #     mr r26, r4
 
-            # if ExtHit was already given to us, don't calculate ExtHit again
-            cmplwi r6, 0
-            mr r28, r6
-            bne CalculateTypes
+        #     # if ExtHit was already given to us, don't calculate ExtHit again
+        #     cmplwi r6, 0
+        #     mr r28, r6
+        #     bne CalculateTypes
 
-            # calculate ExtHit offset for given ft/it hit ptr
-            CalculateExtHitOffset:
-                mr r3, r27
-                mr r4, r29
-                %branchLink("0x801510d4")
-            # r3 now has offset
-            cmplwi r3, 0
-            beq Epilog
-            mr r28, r3 # ExtHit off
+        #     # calculate ExtHit offset for given ft/it hit ptr
+        #     CalculateExtHitOffset:
+        #         mr r3, r27
+        #         mr r4, r29
+        #         %branchLink("0x801510d4")
+        #     # r3 now has offset
+        #     cmplwi r3, 0
+        #     beq Epilog
+        #     mr r28, r3 # ExtHit off
 
-            CalculateTypes:
-                # r25 = source type
-                # r24 = defender type
-                mr r3, r27
-                bl IsItemOrFighter
-                cmplwi r3, 0
-                beq Epilog
-                mr r25, r3 # backup source type
+        #     CalculateTypes:
+        #         # r25 = source type
+        #         # r24 = defender type
+        #         mr r3, r27
+        #         bl IsItemOrFighter
+        #         cmplwi r3, 0
+        #         beq Epilog
+        #         mr r25, r3 # backup source type
 
-                mr r3, r26
-                bl IsItemOrFighter
-                cmplwi r3, 0
-                beq Epilog
-                mr r24, r3 # backup def type
+        #         mr r3, r26
+        #         bl IsItemOrFighter
+        #         cmplwi r3, 0
+        #         beq Epilog
+        #         mr r24, r3 # backup def type
 
-            StoreHitlag:
-                lbz r0, {extHitNormOff(hitFlags)}(r28)
-                %`rlwinm.`(r5, r0, 0, flag(hfDisableHitlag))
-                beq StoreHitlagChecks
-                li r5, 1
+        #     StoreHitlag:
+        #         lbz r0, {extHitNormOff(hitFlags)}(r28)
+        #         %`rlwinm.`(r5, r0, 0, flag(hfDisableHitlag))
+        #         beq StoreHitlagChecks
+        #         li r5, 1
 
-                StoreHitlagChecks:
-                    lfs f0, {extHitNormOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
+        #         StoreHitlagChecks:
+        #             lfs f0, {extHitNormOff(hitlagMultiplier)}(r28) # load hitlag mutliplier
 
-                    # store hitlag multi for attacker depending on entity type
-                    cmpwi r25, 1
-                    addi r3, r31, {extItDataOff(HeaderInfo, hitlagMultiplier)}
-                    bne StoreHitlagMultiForAttacker
-                    addi r3, r31, 0x1960
+        #             # store hitlag multi for attacker depending on entity type
+        #             cmpwi r25, 1
+        #             addi r3, r31, {extItDataOff(HeaderInfo, hitlagMultiplier)}
+        #             bne StoreHitlagMultiForAttacker
+        #             addi r3, r31, 0x1960
                     
-                    # store DisableHitlag flag for attacker (fighter)
-                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
-                    rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
-                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+        #             # store DisableHitlag flag for attacker (fighter)
+        #             lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
+        #             rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
+        #             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r31)
 
-                    StoreHitlagMultiForAttacker:
-                        stfs f0, 0(r3)
+        #             StoreHitlagMultiForAttacker:
+        #                 stfs f0, 0(r3)
 
-                    # store hitlag multi for defender depending on entity type                
-                    cmpwi r24, 1
-                    addi r3, r30, {extItDataOff(HeaderInfo, hitlagMultiplier)}
-                    bne ElectricHitlagCalculate
-                    addi r3, r30, 0x1960
+        #             # store hitlag multi for defender depending on entity type                
+        #             cmpwi r24, 1
+        #             addi r3, r30, {extItDataOff(HeaderInfo, hitlagMultiplier)}
+        #             bne ElectricHitlagCalculate
+        #             addi r3, r30, 0x1960
 
-                    # store DisableHitlag flag for defender (fighter)
-                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
-                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             # store DisableHitlag flag for defender (fighter)
+        #             lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             rlwimi r0, r5, 5, {flag(ffDisableHitlag)}
+        #             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
-                    # defenders can experience 1.5x more hitlag if hit by an electric attack
-                    ElectricHitlagCalculate:
-                        lwz r0, 0x30(r29) # dmg hit attribute
-                        cmplwi r0, 2 # electric
-                        %`bne+`(StoreHitlagMultiForDefender) # not electric, just store the orig multiplier
-                        # Electric
-                        lwz r4, -0x514C(r13) # PlCo values
-                        lfs f1, 0x1A4(r4) # 1.5 electric hitlag multiplier
-                        fmuls f0, f1, f0 # 1.5 * multiplier
-                        # store extra hitlag for DEFENDER ONLY in Melee
+        #             # defenders can experience 1.5x more hitlag if hit by an electric attack
+        #             ElectricHitlagCalculate:
+        #                 lwz r0, 0x30(r29) # dmg hit attribute
+        #                 cmplwi r0, 2 # electric
+        #                 %`bne+`(StoreHitlagMultiForDefender) # not electric, just store the orig multiplier
+        #                 # Electric
+        #                 lwz r4, -0x514C(r13) # PlCo values
+        #                 lfs f1, 0x1A4(r4) # 1.5 electric hitlag multiplier
+        #                 fmuls f0, f1, f0 # 1.5 * multiplier
+        #                 # store extra hitlag for DEFENDER ONLY in Melee
 
-                    StoreHitlagMultiForDefender:
-                        stfs f0, 0(r3)
+        #             StoreHitlagMultiForDefender:
+        #                 stfs f0, 0(r3)
 
-            # now we store other variables for defenders who are fighters ONLY
-            cmpwi r24, 1 # fighter
-            bne Epilog # not fighter, skip this section      
+        #     # now we store other variables for defenders who are fighters ONLY
+        #     cmpwi r24, 1 # fighter
+        #     bne Epilog # not fighter, skip this section      
 
-            StoreHitstunModifier:
-                lfs f0, {extHitNormOff(hitstunModifier)}(r28)
-                stfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
+        #     StoreHitstunModifier:
+        #         lfs f0, {extHitNormOff(hitstunModifier)}(r28)
+        #         stfs f0, {extFtDataOff(HeaderInfo, hitstunModifier)}(r30)
                 
-            StoreSDIMultiplier:
-                lfs f0, {extHitNormOff(sdiMultiplier)}(r28)
-                stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r30)
+        #     StoreSDIMultiplier:
+        #         lfs f0, {extHitNormOff(sdiMultiplier)}(r28)
+        #         stfs f0, {extFtDataOff(HeaderInfo, sdiMultiplier)}(r30)
             
-            CalculateFlippyDirection:
-                # TODO flippy for items such as goombas??
-                lbz r3, {extHitNormOff(hitFlags)}(r28)
-                lfs f0, 0x2C(r31) # facing direction of attacker
-                %`rlwinm.`(r0, r3, 0, 26, 26) # check FlippyTypeForward
-                bne FlippyForward
-                %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
-                bne StoreCalculatedDirection
-                b SetWeight
-                FlippyForward:
-                    fneg f0, f0
-                StoreCalculatedDirection:
-                    stfs f0, 0x1844(r30)
+        #     CalculateFlippyDirection:
+        #         # TODO flippy for items such as goombas??
+        #         lbz r3, {extHitNormOff(hitFlags)}(r28)
+        #         lfs f0, 0x2C(r31) # facing direction of attacker
+        #         %`rlwinm.`(r0, r3, 0, 26, 26) # check FlippyTypeForward
+        #         bne FlippyForward
+        #         %`rlwinm.`(r0, r3, 0, 25, 25) # check opposite flippy
+        #         bne StoreCalculatedDirection
+        #         b SetWeight
+        #         FlippyForward:
+        #             fneg f0, f0
+        #         StoreCalculatedDirection:
+        #             stfs f0, 0x1844(r30)
 
-            SetWeight:
-                # handles the setting and reseting of temp gravity & fall speed
-                lbz r3, {extHitNormOff(hitFlags)}(r28)
-                %`rlwinm.`(r3, r3, 0, flag(hfSetWeight))
-                beq ResetTempGravityFallSpeed # hit isn't set weight, check to reset vars
+        #     SetWeight:
+        #         # handles the setting and reseting of temp gravity & fall speed
+        #         lbz r3, {extHitNormOff(hitFlags)}(r28)
+        #         %`rlwinm.`(r3, r3, 0, flag(hfSetWeight))
+        #         beq ResetTempGravityFallSpeed # hit isn't set weight, check to reset vars
 
-                SetTempGravityFallSpeed:
-                    # hit is set weight, set temp vars
-                    bl Constants
-                    mflr r3
-                    addi r4, r30, 0x110 # ptr attributes of defender
-                    # set gravity
-                    lfs f0, 0(r3)
-                    stfs f0, 0x5C(r4)
-                    # set fall speed
-                    lfs f0, 4(r3)
-                    stfs f0, 0x60(r4)
-                    # set our temp gravity and fall speed flag to true
-                    li r3, 1
-                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    rlwimi r0, r3, 1, {flag(ffSetWeight)}
-                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    b StoreDisableMeteorCancel
+        #         SetTempGravityFallSpeed:
+        #             # hit is set weight, set temp vars
+        #             bl Constants
+        #             mflr r3
+        #             addi r4, r30, 0x110 # ptr attributes of defender
+        #             # set gravity
+        #             lfs f0, 0(r3)
+        #             stfs f0, 0x5C(r4)
+        #             # set fall speed
+        #             lfs f0, 4(r3)
+        #             stfs f0, 0x60(r4)
+        #             # set our temp gravity and fall speed flag to true
+        #             li r3, 1
+        #             lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             rlwimi r0, r3, 1, {flag(ffSetWeight)}
+        #             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             b StoreDisableMeteorCancel
 
-                ResetTempGravityFallSpeed:
-                    # reset gravity and fall speed only if the temp flag is true
-                    lbz r3, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    %`rlwinm.`(r3, r3, 0, flag(ffSetWeight))
-                    beq StoreDisableMeteorCancel
-                    # call custom reset func
-                    mr r3, r30
-                    %branchLink(CustomFuncResetGravityAndFallSpeed)
+        #         ResetTempGravityFallSpeed:
+        #             # reset gravity and fall speed only if the temp flag is true
+        #             lbz r3, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             %`rlwinm.`(r3, r3, 0, flag(ffSetWeight))
+        #             beq StoreDisableMeteorCancel
+        #             # call custom reset func
+        #             mr r3, r30
+        #             %branchLink(CustomFuncResetGravityAndFallSpeed)
     
-            StoreDisableMeteorCancel:
-                lbz r3, {extHitNormOff(hitFlags)}(r28)
-                %`rlwinm.`(r0, r3, 0, flag(hfNoMeteorCancel))
-                li r3, 0
-                beq MeteorCancelSet
-                li r3, 1
-                MeteorCancelSet:
-                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    rlwimi r0, r3, 2, {flag(ffDisableMeteorCancel)}
-                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #     StoreDisableMeteorCancel:
+        #         lbz r3, {extHitNormOff(hitFlags)}(r28)
+        #         %`rlwinm.`(r0, r3, 0, flag(hfNoMeteorCancel))
+        #         li r3, 0
+        #         beq MeteorCancelSet
+        #         li r3, 1
+        #         MeteorCancelSet:
+        #             lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             rlwimi r0, r3, 2, {flag(ffDisableMeteorCancel)}
+        #             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
-            StoreNoHitstunLandCancel:
-                lbz r3, {extHitAdvOff(hitAdvFlags)}(r28)
-                %`rlwinm.`(r0, r3, 0, flag(hafNoHitstunCancel))
-                li r3, 0
-                beq HitstunLandCancelSet
-                li r3, 1
-                HitstunLandCancelSet:
-                    lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
-                    rlwimi r0, r3, 6, {flag(ffNoHitstunCancel)}
-                    stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #     StoreNoHitstunLandCancel:
+        #         lbz r3, {extHitAdvOff(hitAdvFlags)}(r28)
+        #         %`rlwinm.`(r0, r3, 0, flag(hafNoHitstunCancel))
+        #         li r3, 0
+        #         beq HitstunLandCancelSet
+        #         li r3, 1
+        #         HitstunLandCancelSet:
+        #             lbz r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
+        #             rlwimi r0, r3, 6, {flag(ffNoHitstunCancel)}
+        #             stb r0, {extFtDataOff(HeaderInfo, fighterFlags)}(r30)
 
-            Epilog:
-                %restore
-                EpilogReturn:
-                    blr
+        #     Epilog:
+        #         %restore
+        #         EpilogReturn:
+        #             blr
 
-            IsItemOrFighter:
-                # input = gobj in r3
-                # returns 0 = ?, 1 = fighter, 2 = item, in r3
-                lhz r0, 0(r3)
-                cmplwi r0,0x4
-                li r3, 1
-                beq Result
-                li r3, 2
-                cmplwi r0,0x6
-                beq Result
-                li r3, 0
-                Result:
-                    blr
+        #     IsItemOrFighter:
+        #         # input = gobj in r3
+        #         # returns 0 = ?, 1 = fighter, 2 = item, in r3
+        #         lhz r0, 0(r3)
+        #         cmplwi r0,0x4
+        #         li r3, 1
+        #         beq Result
+        #         li r3, 2
+        #         cmplwi r0,0x6
+        #         beq Result
+        #         li r3, 0
+        #         Result:
+        #             blr
 
-            Constants:
-                blrl
-                %`.float`(0.095) # mario's gravity
-                %`.float`(1.7) # mario's fall speed
+        #     Constants:
+        #         blrl
+        #         %`.float`(0.095) # mario's gravity
+        #         %`.float`(1.7) # mario's fall speed
 
-            OriginalExit:
-                lwz r5, 0x010C(r31)
+        #     OriginalExit:
+        #         lwz r5, 0x010C(r31)
 
         # Patch PlayerThink_Shield/Damage Calculate Hitlag
         # If DisableHitlag flag is true, skip going into hitlag which disables A/S/DI
