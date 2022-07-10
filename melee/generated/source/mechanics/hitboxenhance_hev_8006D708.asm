@@ -1,4 +1,4 @@
-lbz r3, 11228(r30)
+lbz r3, 11264(r30)
 rlwinm. r3, r3, 0, 32
 beq CheckHitlagFrames
 li r5, 0

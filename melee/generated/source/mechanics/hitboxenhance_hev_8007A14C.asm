@@ -16,9 +16,9 @@ li r3, 0
 beq WindboxSet
 li r3, 1
 WindboxSet:
-lbz r4, 11228(r25)
+lbz r4, 11264(r25)
 rlwimi r4, r3, 0, 1
-stb r4, 11228(r25)
+stb r4, 11264(r25)
 lbz r4, 16(r18)
 rlwinm. r4, r4, 0, 128
 beq Exit

@@ -1389,18 +1389,6 @@ defineCodes:
             Exit:
                 lwz r0, 0(r29) # orig code line
 
-        # Init Default Values for ExtHit - Melee
-        # SubactionEvent_0x2C_HitboxMelee_StoreInfoToDataOffset
-        patchInsertAsm "80071288":
-            # r0 = hitbox ID
-            # r31 = fighter data
-            mulli r3, r0, {sizeof(SpecialHit)}
-            addi r3, r3, {ExtFighterDataOffset}
-            add r3, r31, r3
-            %branchLink(CustomFunctionInitDefaultEventVars)
-            Exit:
-                lwz r0, 0(r30) # orig code line
-
         # Init Default Values for ExtHit - Throws
         # SubactionEvent_0x88_Throw
         patchInsertAsm "80071e48":
@@ -1498,34 +1486,5 @@ defineCodes:
 
             Exit:
                 stfs f1, 0x1838(r30) # original code line
-
-        # Custom Non-Standalone Function For Initing Default Values in ExtHit
-        patchInsertAsm "801510e4":
-            # inputs
-            # r3 = ExtHit
-            # TODO samus create hitbox?
-            cmpwi r4, 343
-            %`beq-`(OriginalExit)
-
-            # reset vars that need to be 1
-            lfs f0, -0x7790(rtoc) # 1
-            stfs f0, {extHitNormOff(hitlagMultiplier)}(r3)
-            stfs f0, {extHitNormOff(sdiMultiplier)}(r3)
-            stfs f0, {extHitNormOff(shieldstunMultiplier)}(r3)
-
-            # reset vars that need to be 0
-            lfs f0, -0x778C(rtoc) # 0.0
-            stfs f0, {extHitNormOff(hitstunModifier)}(r3)
-            li r0, 0
-            stw r0, {extHitAtkCapOff(offsetX2)}(r3)
-            stw r0, {extHitAtkCapOff(offsetY2)}(r3)
-            stw r0, {extHitAtkCapOff(offsetZ2)}(r3)
-            stw r0, {extHitAdvOff(hitAdvFlags)}(r3)
-            stw r0, {extHitOff(hitStdFlags)}(r3)
-            stw r0, {extHitNormOff(hitFlags)}(r3)
-            blr
-
-            OriginalExit:
-                lfs f2, -0x5B3C(rtoc) # orig code line
 
       

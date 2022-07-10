@@ -1,4 +1,4 @@
-lfs f1, 11220(r29)
+lfs f1, 11256(r29)
 fadds f0, f0, f1
 lfs f1, 0xFFFF8AF8(rtoc)
 fcmpo cr0, f0, f1

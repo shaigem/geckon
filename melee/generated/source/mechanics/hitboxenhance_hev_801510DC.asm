@@ -43,21 +43,21 @@ li r5, 1
 StoreHitlagChecks:
 lfs f0, 0(r28)
 cmpwi r25, 1
-addi r3, r31, 5952
+addi r3, r31, 5984
 bne StoreHitlagMultiForAttacker
 addi r3, r31, 0x00001960
-lbz r0, 11228(r31)
+lbz r0, 11264(r31)
 rlwimi r0, r5, 5, 32
-stb r0, 11228(r31)
+stb r0, 11264(r31)
 StoreHitlagMultiForAttacker:
 stfs f0, 0(r3)
 cmpwi r24, 1
-addi r3, r30, 5952
+addi r3, r30, 5984
 bne ElectricHitlagCalculate
 addi r3, r30, 0x00001960
-lbz r0, 11228(r30)
+lbz r0, 11264(r30)
 rlwimi r0, r5, 5, 32
-stb r0, 11228(r30)
+stb r0, 11264(r30)
 ElectricHitlagCalculate:
 lwz r0, 0x00000030(r29)
 cmplwi r0, 2
@@ -71,10 +71,10 @@ cmpwi r24, 1
 bne Epilog
 StoreHitstunModifier:
 lfs f0, 12(r28)
-stfs f0, 11220(r30)
+stfs f0, 11256(r30)
 StoreSDIMultiplier:
 lfs f0, 4(r28)
-stfs f0, 11216(r30)
+stfs f0, 11252(r30)
 CalculateFlippyDirection:
 lbz r3, 16(r28)
 lfs f0, 0x0000002C(r31)
@@ -100,12 +100,12 @@ stfs f0, 0x0000005C(r4)
 lfs f0, 4(r3)
 stfs f0, 0x00000060(r4)
 li r3, 1
-lbz r0, 11228(r30)
+lbz r0, 11264(r30)
 rlwimi r0, r3, 1, 2
-stb r0, 11228(r30)
+stb r0, 11264(r30)
 b StoreDisableMeteorCancel
 ResetTempGravityFallSpeed:
-lbz r3, 11228(r30)
+lbz r3, 11264(r30)
 rlwinm. r3, r3, 0, 2
 beq StoreDisableMeteorCancel
 mr r3, r30
@@ -120,9 +120,9 @@ li r3, 0
 beq MeteorCancelSet
 li r3, 1
 MeteorCancelSet:
-lbz r0, 11228(r30)
+lbz r0, 11264(r30)
 rlwimi r0, r3, 2, 4
-stb r0, 11228(r30)
+stb r0, 11264(r30)
 StoreNoHitstunLandCancel:
 lbz r3, 44(r28)
 rlwinm. r0, r3, 0, 128
@@ -130,9 +130,9 @@ li r3, 0
 beq HitstunLandCancelSet
 li r3, 1
 HitstunLandCancelSet:
-lbz r0, 11228(r30)
+lbz r0, 11264(r30)
 rlwimi r0, r3, 6, 64
-stb r0, 11228(r30)
+stb r0, 11264(r30)
 Epilog:
 lmw r20, 0x00000008(r1)
 lwz r0, (56 + 0x00000004 + 120)(r1)
