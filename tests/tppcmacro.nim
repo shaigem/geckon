@@ -177,6 +177,19 @@ li r4, 1
 li r3, 0"""
         check a == a2
 
+    test "assignment":
+        type Stuff = enum
+            Apple = 0,
+            Orange = 1
+        const a =
+            ppc:
+                abc = {(Stuff.Orange.int64)}
+                ding = {Stuff.Apple.int64} - 1
+        const a2 = """
+abc = 1
+ding = 0 - 1"""
+        check a == a2
+
     test "branches & nim interop":
         proc calculateOffset(address: int64): string =
             "li r4, " & $address

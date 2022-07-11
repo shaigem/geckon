@@ -42,7 +42,7 @@ proc ppcImpl(c, b: NimNode): NimNode =
     of nnkStmtList:
         for n in b:
             result.add ppcImpl(c, n)
-    of nnkCommand:
+    of nnkCommand, nnkAsgn:
         let toStrNode = newStrLitNode("")
         let commandIdent = b[0]
         if commandIdent.kind == nnkStrLit:
@@ -60,7 +60,10 @@ proc ppcImpl(c, b: NimNode): NimNode =
                 b[i] = newIntLitNode(b[i].intVal)
             else:
                 discard
-            let toAppend = toStrNode.strVal & " " & b[i].repr &
+
+            let op = if b.kind == nnkAsgn: " = " else: " "
+                
+            let toAppend = toStrNode.strVal & op & b[i].repr &
                     (if i == b.len - 1:
                         "\n"
                     else:
