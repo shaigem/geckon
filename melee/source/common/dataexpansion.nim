@@ -10,6 +10,15 @@ type
         name*: string
         fighterDataSize*: int
         itemDataSize*: int
+
+    DamageReactionMode* = enum
+        drmNormal
+        drmAlways
+        drmReactionValue
+        drmReactionValueSub
+        drmDamagePower
+        drmHpDamagePower
+        
     HitFlag* {.size: sizeof(uint32).} = enum
         hfAffectOnlyThrow,
         hfNoStale,
@@ -113,7 +122,7 @@ type
         hitstunModifier*: float32
         shieldstunMultiplier*: float32
         fighterFlags*: FighterFlags
-        fighterFlags2*: FighterFlags
+        noReactionMode*: int8
         padding2*: int16
         # autolink related
         vecTargetPosFrame*: float32
